@@ -1,0 +1,149 @@
+{% extends "core/base.html" %}
+
+{% block title %}Documents - ROoP{% endblock %}
+{% block nav_docs_active %}active{% endblock %}
+
+{% block content %}
+<div class="docs-container">
+    <!-- Upload section -->
+    <div class="upload-section" x-data="uploadApp()">
+        <h2>Upload Documents</h2>
+        <p class="upload-hint">Supported formats: PDF, TXT, MD (max 50MB)</p>
+
+        <!-- Drag & Drop zone -->
+        <div class="drop-zone"
+             :class="{ 'drop-zone-active': isDragging }"
+             @dragenter.prevent="isDragging = true"
+             @dragover.prevent="isDragging = true"
+             @dragleave.prevent="isDragging = false"
+             @drop.prevent="handleDrop($event)">
+
+            <div class="drop-zone-content" x-show="!uploading">
+                <div class="drop-icon">&#128194;</div>
+                <p>Drag & drop files here</p>
+                <span class="drop-or">or</span>
+                <label class="btn btn-primary file-label">
+                    Browse files
+                    <input type="file"
+                           accept=".pdf,.txt,.md"
+                           multiple
+                           @change="handleFiles($event)"
+                           class="file-input-hidden">
+                </label>
+            </div>
+
+            <div class="upload-progress" x-show="uploading">
+                <div class="spinner"></div>
+                <p x-text="uploadStatus">Processing...</p>
+            </div>
+        </div>
+
+        <!-- Upload results -->
+        <div id="upload-results"></div>
+    </div>
+
+    <!-- Documents list -->
+    <div class="docs-list-section">
+        <div class="docs-list-header">
+            <h2>Uploaded Documents</h2>
+            <span class="docs-count">{{ docs_count }} documents, {{ total_size }}</span>
+        </div>
+
+        <div id="doc-list"
+             hx-get="{% url 'core:htmx_doc_list' %}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="loading-placeholder">
+                <div class="spinner"></div>
+                Loading documents...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function uploadApp() {
+    return {
+        isDragging: false,
+        uploading: false,
+        uploadStatus: 'Processing...',
+
+        handleDrop(event) {
+            this.isDragging = false;
+            const files = event.dataTransfer.files;
+            this.uploadFiles(files);
+        },
+
+        handleFiles(event) {
+            const files = event.target.files;
+            this.uploadFiles(files);
+        },
+
+        async uploadFiles(files) {
+            for (let i = 0; i < files.length; i++) {
+                await this.uploadSingleFile(files[i], i + 1, files.length);
+            }
+        },
+
+        async uploadSingleFile(file, current, total) {
+            this.uploading = true;
+            this.uploadStatus = `Uploading ${current}/${total}: ${file.name}...`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || '{{ csrf_token }}';
+
+            // Animated status steps
+            var self = this;
+            var step = 0;
+            var steps = [
+                'Uploading ' + file.name + '...',
+                'Extracting text from document...',
+                'Splitting into chunks...',
+                'Generating embeddings (this may take a while)...',
+                'Storing in vector database...',
+                'Almost done...',
+            ];
+            var statusTimer = setInterval(function() {
+                step++;
+                if (step < steps.length) {
+                    self.uploadStatus = steps[step];
+                }
+            }, 3000);
+
+            try {
+                const response = await fetch('{% url "core:htmx_upload" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: formData,
+                });
+
+                clearInterval(statusTimer);
+
+                const html = await response.text();
+                document.getElementById('upload-results').innerHTML += html;
+
+                // Refresh document list
+                htmx.trigger('#doc-list', 'htmx:load');
+                htmx.ajax('GET', '{% url "core:htmx_doc_list" %}', '#doc-list');
+
+            } catch (error) {
+                clearInterval(statusTimer);
+                document.getElementById('upload-results').innerHTML +=
+                    '<div class="alert alert-error">Error uploading ' + file.name + ': ' + error.message + '</div>';
+            }
+
+            this.uploading = false;
+            this.uploadStatus = 'Processing...';
+        }
+    }
+}
+</script>
+{% endblock %}

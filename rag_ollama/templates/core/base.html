@@ -1,0 +1,105 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ROoP{% endblock %}</title>
+
+    <!-- Theme: apply before render to prevent flash -->
+    <script>
+        (function() {
+            var saved = localStorage.getItem('theme');
+            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    <!-- CSS -->
+    <link rel="stylesheet" href="{% static 'core/css/main.css' %}">
+
+    <meta name="htmx-config" content='{"defaultSwapStyle":"innerHTML"}'>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{% url 'core:index' %}" class="nav-logo">
+                <span class="logo-icon">&#9670;</span>
+                ROoP
+            </a>
+            <div class="nav-links">
+                <a href="{% url 'core:index' %}" class="nav-link {% block nav_chat_active %}{% endblock %}">
+                    Chat
+                </a>
+                <a href="{% url 'core:docs' %}" class="nav-link {% block nav_docs_active %}{% endblock %}">
+                    Documents
+                </a>
+                <a href="/admin/" class="nav-link" target="_blank">
+                    Admin
+                </a>
+                <button onclick="toggleTheme()" class="theme-toggle" id="theme-toggle-btn" title="Toggle theme">
+                    <span id="theme-icon-light">&#9789;</span>
+                    <span id="theme-icon-dark" style="display:none">&#9788;</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Stats bar -->
+    <div class="stats-bar"
+         hx-get="{% url 'core:htmx_stats' %}"
+         hx-trigger="load, every 15s"
+         hx-swap="innerHTML">
+        <div class="stats-loading">Loading stats...</div>
+    </div>
+
+    <!-- Main content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            ROoP &mdash; Rag-Ollama-On-Premises | Django + Ollama + ChromaDB
+        </div>
+    </footer>
+
+    <!-- Theme toggle script -->
+    <script>
+        function toggleTheme() {
+            var html = document.documentElement;
+            var isDark = html.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeIcon(isDark);
+        }
+
+        function updateThemeIcon(isDark) {
+            var iconLight = document.getElementById('theme-icon-light');
+            var iconDark = document.getElementById('theme-icon-dark');
+            if (iconLight && iconDark) {
+                iconLight.style.display = isDark ? 'none' : 'inline';
+                iconDark.style.display = isDark ? 'inline' : 'none';
+            }
+        }
+
+        // Set correct icon on load
+        updateThemeIcon(document.documentElement.classList.contains('dark'));
+    </script>
+
+    <!-- CSRF Token for HTMX -->
+    <script>
+        document.body.addEventListener('htmx:configRequest', function(event) {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

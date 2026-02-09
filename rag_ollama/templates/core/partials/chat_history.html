@@ -1,0 +1,35 @@
+{% for msg in messages %}
+<div class="message message-{{ msg.role }}">
+    <div class="message-avatar">
+        {% if msg.role == 'user' %}&#9775;{% else %}&#9670;{% endif %}
+    </div>
+    <div class="message-body">
+        <div class="message-role">
+            {% if msg.role == 'user' %}You{% else %}AI Assistant{% endif %}
+        </div>
+        <div class="message-content">{{ msg.content|linebreaksbr }}</div>
+        {% if msg.sources %}
+        <div class="message-sources">
+            <details>
+                <summary>Sources ({{ msg.sources|length }})</summary>
+                <ul>
+                    {% for source in msg.sources %}
+                    <li>
+                        <strong>{{ source.filename }}</strong>
+                        (chunk {{ source.chunk_index }}, relevance: {{ source.relevance }})
+                        <p class="source-preview">{{ source.preview }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% empty %}
+<div class="empty-chat">
+    <div class="empty-icon">&#9670;</div>
+    <h2>ROoP</h2>
+    <p>Chat history cleared. Ask a new question.</p>
+</div>
+{% endfor %}

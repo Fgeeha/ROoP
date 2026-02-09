@@ -1,0 +1,33 @@
+<!-- User message -->
+<div class="message message-user">
+    <div class="message-avatar">&#9775;</div>
+    <div class="message-body">
+        <div class="message-role">You</div>
+        <div class="message-content">{{ user_message|linebreaksbr }}</div>
+    </div>
+</div>
+
+<!-- AI response -->
+<div class="message message-assistant">
+    <div class="message-avatar">&#9670;</div>
+    <div class="message-body">
+        <div class="message-role">AI Assistant</div>
+        <div class="message-content">{{ answer|linebreaksbr }}</div>
+        {% if sources %}
+        <div class="message-sources">
+            <details>
+                <summary>Sources ({{ sources|length }})</summary>
+                <ul>
+                    {% for source in sources %}
+                    <li>
+                        <strong>{{ source.filename }}</strong>
+                        (chunk {{ source.chunk_index }}, relevance: {{ source.relevance }})
+                        <p class="source-preview">{{ source.preview }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+        </div>
+        {% endif %}
+    </div>
+</div>

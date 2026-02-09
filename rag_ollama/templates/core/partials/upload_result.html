@@ -1,0 +1,10 @@
+{% if success %}
+<div class="alert alert-success">
+    <strong>{{ document.original_filename }}</strong> uploaded successfully.
+    Processed {{ chunks_count }} chunks.
+</div>
+{% else %}
+<div class="alert alert-error">
+    <strong>Upload error:</strong> {{ error }}
+</div>
+{% endif %}

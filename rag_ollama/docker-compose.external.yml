@@ -1,0 +1,58 @@
+# =============================================================================
+# Docker Compose: Ollama on a REMOTE server (or Open WebUI)
+# =============================================================================
+#
+# Use when Ollama is already running on another machine, or when using
+# Open WebUI as a proxy (set LLM_BACKEND=openwebui in .env).
+# Only starts Django -- no local Ollama container.
+#
+# Before starting:
+#   1. Edit .env:
+#      - For direct Ollama:   OLLAMA_URL=http://192.168.1.100:11434
+#      - For Open WebUI:      LLM_BACKEND=openwebui + OPENWEBUI_URL + OPENWEBUI_API_KEY
+#
+#   2. Make sure models are available on the remote side.
+#
+# Start:
+#   make up-external
+#   or:
+#   docker compose -f docker-compose.external.yml up -d
+#
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-django
+    ports:
+      - "8000:8000"
+    volumes:
+      - db_data:/app/data
+      - chroma_data:/app/chroma_data
+      - media_data:/app/media
+      - log_data:/app/logs
+    env_file:
+      - .env
+    environment:
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_PASSWORD=admin123
+      - DJANGO_SUPERUSER_EMAIL=admin@localhost
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  db_data:
+    driver: local
+  chroma_data:
+    driver: local
+  media_data:
+    driver: local
+  log_data:
+    driver: local

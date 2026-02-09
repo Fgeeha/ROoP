@@ -1,0 +1,70 @@
+# Docker Compose for CPU-only systems (without NVIDIA GPU)
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: rag-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling models..."
+        ollama pull mistral
+        ollama pull nomic-embed-text
+        echo "Models ready!"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    restart: "no"
+
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-django
+    ports:
+      - "8000:8000"
+    volumes:
+      - db_data:/app/data
+      - chroma_data:/app/chroma_data
+      - media_data:/app/media
+      - log_data:/app/logs
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_PASSWORD=admin123
+      - DJANGO_SUPERUSER_EMAIL=admin@localhost
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    driver: local
+  db_data:
+    driver: local
+  chroma_data:
+    driver: local
+  media_data:
+    driver: local
+  log_data:
+    driver: local

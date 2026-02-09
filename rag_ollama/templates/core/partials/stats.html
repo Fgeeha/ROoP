@@ -1,0 +1,18 @@
+<div class="stats-container">
+    <div class="stat-item">
+        <span class="stat-label">Documents:</span>
+        <span class="stat-value">{{ docs_count }}</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">Chunks:</span>
+        <span class="stat-value">{{ chunks_count }}</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">Total size:</span>
+        <span class="stat-value">{{ total_size }}</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-label">Ollama:</span>
+        <span class="stat-value status-{{ ollama_status }}">{{ ollama_status }}</span>
+    </div>
+</div>
