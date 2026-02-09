@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Django
+db.sqlite3
+staticfiles/
+media/documents/*
+!media/documents/.gitkeep
+logs/*.log
+
+# ChromaDB
+chroma_data/
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Linter & Tests cache
+.ruff_cache/
+.pytest_cache/
