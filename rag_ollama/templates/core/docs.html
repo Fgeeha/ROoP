@@ -8,7 +8,7 @@
     <!-- Upload section -->
     <div class="upload-section" x-data="uploadApp()">
         <h2>Загрузка документов</h2>
-        <p class="upload-hint">Поддерживаемые форматы: PDF, TXT, MD (макс. 50 МБ)</p>
+        <p class="upload-hint">Поддерживаемые форматы: PDF, TXT, MD, DOCX, DOC (макс. 50 МБ)</p>
 
         <!-- Drag & Drop zone -->
         <div class="drop-zone"
@@ -25,7 +25,7 @@
                 <label class="btn btn-primary file-label">
                     Выбрать файлы
                     <input type="file"
-                           accept=".pdf,.txt,.md"
+                           accept=".pdf,.txt,.md,.docx,.doc"
                            multiple
                            @change="handleFiles($event)"
                            class="file-input-hidden">

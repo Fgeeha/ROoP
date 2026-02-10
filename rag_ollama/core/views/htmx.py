@@ -108,13 +108,13 @@ def htmx_upload(request):
 
     # Validate file type
     ext = uploaded_file.name.rsplit('.', 1)[-1].lower() if '.' in uploaded_file.name else ''
-    if ext not in ('pdf', 'txt', 'md'):
+    if ext not in ('pdf', 'txt', 'md', 'docx', 'doc'):
         return render(
             request,
             'core/partials/upload_result.html',
             {
                 'success': False,
-                'error': 'Неподдерживаемый формат. Допустимые: PDF, TXT, MD',
+                'error': 'Неподдерживаемый формат. Допустимые: PDF, TXT, MD, DOCX, DOC',
             },
         )
 

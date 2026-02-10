@@ -39,7 +39,7 @@ logger = logging.getLogger('core')
 def api_upload(request):
     """
     POST /api/upload/
-    Upload a document (PDF, TXT, MD).
+    Upload a document (PDF, TXT, MD, DOCX, DOC).
     """
     serializer = DocumentUploadSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

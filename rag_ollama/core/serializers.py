@@ -47,11 +47,11 @@ class DocumentUploadSerializer(serializers.Serializer):
     """Serializer for document upload."""
 
     file = serializers.FileField(
-        help_text='PDF, TXT или MD файл',
+        help_text='PDF, TXT, MD, DOCX или DOC файл',
     )
 
     def validate_file(self, value):
-        allowed_types = ['.pdf', '.txt', '.md']
+        allowed_types = ['.pdf', '.txt', '.md', '.docx', '.doc']
         ext = '.' + value.name.rsplit('.', 1)[-1].lower() if '.' in value.name else ''
         if ext not in allowed_types:
             raise serializers.ValidationError(f'Неподдерживаемый формат файла. Допустимые: {", ".join(allowed_types)}')

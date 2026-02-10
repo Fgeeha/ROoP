@@ -247,6 +247,10 @@ class RAGPipeline:
             raw = self._extract_pdf(file_path)
         elif file_type in ('txt', 'md'):
             raw = self._extract_text_file(file_path)
+        elif file_type == 'docx':
+            raw = self._extract_docx(file_path)
+        elif file_type == 'doc':
+            raw = self._extract_doc(file_path)
         else:
             raise ValueError(f'Unsupported file type: {file_type}')
 
@@ -290,6 +294,64 @@ class RAGPipeline:
             text = raw_data.decode('utf-8', errors='replace')
 
         return text
+
+    def _extract_docx(self, file_path: str) -> str:
+        """Extract text from DOCX file using python-docx."""
+        import docx
+
+        doc = docx.Document(file_path)
+        text_parts = []
+
+        for paragraph in doc.paragraphs:
+            text = paragraph.text.strip()
+            if text:
+                text_parts.append(text)
+
+        # Also extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = '\t'.join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                if row_text:
+                    text_parts.append(row_text)
+
+        full_text = '\n\n'.join(text_parts)
+        logger.info(f'DOCX extraction complete: {len(full_text)} chars')
+        return full_text
+
+    def _extract_doc(self, file_path: str) -> str:
+        """
+        Extract text from legacy DOC file.
+        Uses antiword (system utility) as primary method.
+        Falls back to python-docx in case the file is actually DOCX with .doc extension.
+        """
+        import subprocess
+
+        # Try antiword first (handles genuine .doc binary format)
+        try:
+            result = subprocess.run(  # noqa: S603
+                ['/usr/bin/antiword', '-w', '0', file_path],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                logger.info(f'DOC extraction via antiword complete: {len(result.stdout)} chars')
+                return result.stdout
+            logger.warning(f'antiword returned code {result.returncode}: {result.stderr.strip()}')
+        except FileNotFoundError:
+            logger.warning('antiword not installed, falling back to python-docx')
+        except subprocess.TimeoutExpired:
+            logger.warning('antiword timed out, falling back to python-docx')
+
+        # Fallback: try python-docx (works if the file is actually DOCX with .doc extension)
+        try:
+            return self._extract_docx(file_path)
+        except Exception as e:
+            raise ValueError(
+                'Не удалось извлечь текст из DOC файла. '
+                'Убедитесь, что antiword установлен (apt-get install antiword) '
+                'или конвертируйте файл в DOCX формат.'
+            ) from e
 
     def _clean_extracted_text(self, text: str) -> str:
         """

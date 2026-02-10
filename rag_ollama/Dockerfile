@@ -1,10 +1,11 @@
 FROM python:3.12-slim
 
-# System deps (libpq-dev for PostgreSQL, libmagic1 for file type detection)
+# System deps (libpq-dev for PostgreSQL, libmagic1 for file type detection, antiword for .doc files)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     libpq-dev \
     curl \
+    antiword \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
