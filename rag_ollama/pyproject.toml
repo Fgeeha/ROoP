@@ -5,6 +5,7 @@ description = "ROoP (Rag-Ollama-On-Premises) - Production-ready RAG system on Dj
 authors = ["nkolesnikov"]
 readme = "README.md"
 license = "MIT"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -26,6 +27,9 @@ pdfplumber = "^0.11.0"
 python-magic = "^0.4.27"
 chardet = "^5.2.0"
 
+# Database
+psycopg = {version = "^3.2.0", extras = ["binary"]}
+
 # Utils
 python-dotenv = "^1.0.1"
 gunicorn = "^23.0.0"
@@ -38,8 +42,10 @@ markdown = "^3.7"
 ruff = "^0.8.0"
 pytest = "^8.3.0"
 pytest-django = "^4.9.0"
+pytest-cov = "^6.0.0"
 django-debug-toolbar = "^4.4.0"
 ipython = "^8.29.0"
+pre-commit = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -49,13 +55,57 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 target-version = "py311"
 line-length = 120
+src = ["."]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort (сортировка импортов)
+    "N",   # pep8-naming
+    "W",   # pycodestyle warnings
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit (security)
+    "C4",  # flake8-comprehensions
+    "DJ",  # flake8-django
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "S101",  # assert (used in tests)
+    "S105",  # possible hardcoded password (false positives)
+    "S106",  # possible hardcoded password (false positives)
+    "B008",  # function call in default arg (DRF uses this)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]
+"**/migrations/**" = ["E501", "N"]
+"manage.py" = ["S"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "rag_project"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "rag_project.settings"
 python_files = ["tests.py", "test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["core"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "manage.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 0

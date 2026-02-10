@@ -27,9 +27,6 @@ class RequestLoggingMiddleware:
 
         # Skip logging for static files
         if not request.path.startswith('/static/'):
-            logger.info(
-                f"{request.method} {request.path} -> {response.status_code} "
-                f"({duration_ms}ms)"
-            )
+            logger.info(f'{request.method} {request.path} -> {response.status_code} ({duration_ms}ms)')
 
         return response

@@ -24,13 +24,14 @@ logger = logging.getLogger(__name__)
 # LLM Backend abstraction
 # =============================================================================
 
+
 class OllamaBackend:
     """Direct Ollama API client."""
 
     def __init__(self, url: str):
         self.url = url
         self._client = ollama.Client(host=url)
-        logger.info(f"Ollama backend initialized: {url}")
+        logger.info(f'Ollama backend initialized: {url}')
 
     def embed(self, texts: list[str], model: str) -> list[list[float]]:
         response = self._client.embed(model=model, input=texts)
@@ -76,7 +77,7 @@ class OpenWebUIBackend:
             headers=self._build_headers(),
             timeout=httpx.Timeout(300.0, connect=10.0),
         )
-        logger.info(f"Open WebUI backend initialized: {url} (key: {'set' if api_key else 'NOT SET'})")
+        logger.info(f'Open WebUI backend initialized: {url} (key: {"set" if api_key else "NOT SET"})')
 
     def _build_headers(self) -> dict:
         headers = {'Content-Type': 'application/json'}
@@ -101,10 +102,7 @@ class OpenWebUIBackend:
             # Ollama format: {"embeddings": [[...], [...]]}
             return data['embeddings']
         except (httpx.HTTPStatusError, KeyError) as primary_err:
-            logger.warning(
-                f"Ollama proxy embed failed ({primary_err}), "
-                f"falling back to /api/v1/embeddings one-by-one"
-            )
+            logger.warning(f'Ollama proxy embed failed ({primary_err}), falling back to /api/v1/embeddings one-by-one')
             # Fallback: OpenAI-compatible endpoint, one text at a time
             return self._embed_one_by_one(texts, model)
 
@@ -157,7 +155,7 @@ class OpenWebUIBackend:
             return {
                 'status': status,
                 'backend': 'openwebui',
-                'error': f"HTTP {e.response.status_code}: {e.response.text[:200]}",
+                'error': f'HTTP {e.response.status_code}: {e.response.text[:200]}',
                 'url': self.url,
             }
         except Exception as e:
@@ -172,7 +170,7 @@ def create_llm_backend():
         url = settings.OPENWEBUI_URL
         api_key = settings.OPENWEBUI_API_KEY
         if not api_key:
-            logger.warning("OPENWEBUI_API_KEY is not set -- requests may be rejected")
+            logger.warning('OPENWEBUI_API_KEY is not set -- requests may be rejected')
         return OpenWebUIBackend(url=url, api_key=api_key)
     else:
         return OllamaBackend(url=settings.OLLAMA_URL)
@@ -181,6 +179,7 @@ def create_llm_backend():
 # =============================================================================
 # RAG Pipeline
 # =============================================================================
+
 
 class RAGPipeline:
     """
@@ -215,11 +214,10 @@ class RAGPipeline:
         self._chroma_client = chromadb.PersistentClient(path=chroma_dir)
         self._collection = self._chroma_client.get_or_create_collection(
             name=settings.CHROMA_COLLECTION,
-            metadata={"hnsw:space": "cosine"},
+            metadata={'hnsw:space': 'cosine'},
         )
         logger.info(
-            f"ChromaDB initialized: collection='{settings.CHROMA_COLLECTION}', "
-            f"documents={self._collection.count()}"
+            f"ChromaDB initialized: collection='{settings.CHROMA_COLLECTION}', documents={self._collection.count()}"
         )
 
         # LLM backend
@@ -243,17 +241,17 @@ class RAGPipeline:
 
     def extract_text(self, file_path: str, file_type: str) -> str:
         """Extract text content from a file."""
-        logger.info(f"Extracting text from: {file_path} (type: {file_type})")
+        logger.info(f'Extracting text from: {file_path} (type: {file_type})')
 
         if file_type == 'pdf':
             raw = self._extract_pdf(file_path)
         elif file_type in ('txt', 'md'):
             raw = self._extract_text_file(file_path)
         else:
-            raise ValueError(f"Unsupported file type: {file_type}")
+            raise ValueError(f'Unsupported file type: {file_type}')
 
         cleaned = self._clean_extracted_text(raw)
-        logger.info(f"Text extracted and cleaned: {len(raw)} -> {len(cleaned)} chars")
+        logger.info(f'Text extracted and cleaned: {len(raw)} -> {len(cleaned)} chars')
         return cleaned
 
     def _extract_pdf(self, file_path: str) -> str:
@@ -264,15 +262,15 @@ class RAGPipeline:
         with pdfplumber.open(file_path) as pdf:
             for page_num, page in enumerate(pdf.pages):
                 page_text = page.extract_text(
-                    x_tolerance=2,      # merge chars closer than 2pt (fixes broken words)
-                    y_tolerance=3,      # merge lines closer than 3pt
+                    x_tolerance=2,  # merge chars closer than 2pt (fixes broken words)
+                    y_tolerance=3,  # merge lines closer than 3pt
                 )
                 if page_text:
                     text_parts.append(page_text)
-                    logger.debug(f"Extracted page {page_num + 1}: {len(page_text)} chars")
+                    logger.debug(f'Extracted page {page_num + 1}: {len(page_text)} chars')
 
         full_text = '\n\n'.join(text_parts)
-        logger.info(f"PDF extraction complete: {len(full_text)} chars from {len(pdf.pages)} pages")
+        logger.info(f'PDF extraction complete: {len(full_text)} chars from {len(pdf.pages)} pages')
         return full_text
 
     def _extract_text_file(self, file_path: str) -> str:
@@ -284,7 +282,7 @@ class RAGPipeline:
 
         detected = chardet.detect(raw_data)
         encoding = detected.get('encoding', 'utf-8') or 'utf-8'
-        logger.debug(f"Detected encoding: {encoding} (confidence: {detected.get('confidence', 0):.2f})")
+        logger.debug(f'Detected encoding: {encoding} (confidence: {detected.get("confidence", 0):.2f})')
 
         try:
             text = raw_data.decode(encoding)
@@ -318,16 +316,12 @@ class RAGPipeline:
             # Lines that appear in >= 40% of page blocks are headers/footers
             threshold = max(3, len(page_blocks) * 0.4)
             header_footer_lines = {
-                line for line, count in line_counts.items()
-                if count >= threshold and len(line) < 200
+                line for line, count in line_counts.items() if count >= threshold and len(line) < 200
             }
 
             if header_footer_lines:
-                logger.info(f"Removing {len(header_footer_lines)} repeated header/footer patterns")
-                lines = [
-                    line for line in lines
-                    if line.strip() not in header_footer_lines
-                ]
+                logger.info(f'Removing {len(header_footer_lines)} repeated header/footer patterns')
+                lines = [line for line in lines if line.strip() not in header_footer_lines]
 
         # 2. Remove standalone page numbers (lines that are just a number)
         lines = [line for line in lines if not re.match(r'^\s*\d{1,4}\s*$', line)]
@@ -341,6 +335,7 @@ class RAGPipeline:
         #    This is safe because single Cyrillic letters between spaces are almost
         #    never real words (except "в", "и", "с", "к", "о", "а", "у" - prepositions).
         _prepositions = set('вискоау')
+
         def _merge_fragment(m):
             frag = m.group(2)
             if frag.lower() in _prepositions:
@@ -363,8 +358,8 @@ class RAGPipeline:
     # Examples: "Социальная защита", "Интеграционный модуль", "Расписание"
     _HEADING_RE = re.compile(
         r'^(?:'
-        r'(?:Модуль|Раздел|Глава|Часть|Блок)\s+.+'        # "Модуль ..."
-        r'|[А-ЯЁ][а-яёА-ЯЁ\s\-]{2,60}'                    # Capitalised short line (heading)
+        r'(?:Модуль|Раздел|Глава|Часть|Блок)\s+.+'  # "Модуль ..."
+        r'|[А-ЯЁ][а-яёА-ЯЁ\s\-]{2,60}'  # Capitalised short line (heading)
         r')$'
     )
 
@@ -408,7 +403,7 @@ class RAGPipeline:
         # Filter tiny chunks (< 50 chars are noise)
         chunks = [c for c in chunks if len(c.strip()) > 50]
 
-        logger.info(f"Text chunked: {len(text)} chars -> {len(chunks)} chunks")
+        logger.info(f'Text chunked: {len(text)} chars -> {len(chunks)} chunks')
         return chunks
 
     def _split_by_headings(self, text: str) -> list[str]:
@@ -454,14 +449,14 @@ class RAGPipeline:
             if section_text:
                 sections.append(section_text)
 
-        logger.debug(f"Split into {len(sections)} sections by headings")
+        logger.debug(f'Split into {len(sections)} sections by headings')
         return sections
 
     def _split_by_paragraphs(self, text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
         """Split a section into chunks by paragraph boundaries with overlap."""
         paragraphs = text.split('\n\n')
         chunks = []
-        current_chunk = ""
+        current_chunk = ''
 
         for paragraph in paragraphs:
             paragraph = paragraph.strip()
@@ -477,7 +472,7 @@ class RAGPipeline:
                     # Paragraph itself too long -- split by sentences
                     sub_chunks = self._split_long_text(paragraph, chunk_size, chunk_overlap)
                     chunks.extend(sub_chunks)
-                    current_chunk = ""
+                    current_chunk = ''
                 else:
                     # Start new chunk; add overlap from end of previous chunk
                     if chunks:
@@ -547,24 +542,26 @@ class RAGPipeline:
         if not chunks:
             return []
 
-        logger.info(f"Generating embeddings for {len(chunks)} chunks...")
+        logger.info(f'Generating embeddings for {len(chunks)} chunks...')
         embeddings = self.get_embeddings_batch(chunks)
 
         # Generate unique IDs for each chunk
         chroma_ids = []
         metadatas = []
         for i, chunk in enumerate(chunks):
-            chunk_hash = hashlib.md5(chunk.encode()).hexdigest()[:12]
-            chroma_id = f"doc{document_id}_chunk{i}_{chunk_hash}"
+            chunk_hash = hashlib.md5(chunk.encode(), usedforsecurity=False).hexdigest()[:12]
+            chroma_id = f'doc{document_id}_chunk{i}_{chunk_hash}'
             chroma_ids.append(chroma_id)
-            metadatas.append({
-                'document_id': str(document_id),
-                'filename': filename,
-                'chunk_index': i,
-                'char_count': len(chunk),
-                'user_id': str(user_id) if user_id else '',
-                'is_shared': 'true' if is_shared else 'false',
-            })
+            metadatas.append(
+                {
+                    'document_id': str(document_id),
+                    'filename': filename,
+                    'chunk_index': i,
+                    'char_count': len(chunk),
+                    'user_id': str(user_id) if user_id else '',
+                    'is_shared': 'true' if is_shared else 'false',
+                }
+            )
 
         # Add to ChromaDB in batches
         batch_size = 100
@@ -577,26 +574,26 @@ class RAGPipeline:
                 metadatas=metadatas[batch_start:batch_end],
             )
 
-        logger.info(f"Added {len(chunks)} chunks to ChromaDB for document {document_id}")
+        logger.info(f'Added {len(chunks)} chunks to ChromaDB for document {document_id}')
         return chroma_ids
 
     def delete_document_from_chroma(self, document_id: int):
         """Remove all chunks of a document from ChromaDB."""
         try:
             results = self.collection.get(
-                where={"document_id": str(document_id)},
+                where={'document_id': str(document_id)},
             )
             if results and results['ids']:
                 self.collection.delete(ids=results['ids'])
-                logger.info(f"Deleted {len(results['ids'])} chunks from ChromaDB for document {document_id}")
+                logger.info(f'Deleted {len(results["ids"])} chunks from ChromaDB for document {document_id}')
         except Exception as e:
-            logger.error(f"Error deleting from ChromaDB: {e}")
+            logger.error(f'Error deleting from ChromaDB: {e}')
 
     def update_chroma_metadata_for_document(self, document_id: int, user_id: int | None, is_shared: bool):
         """Update user_id and is_shared metadata for an existing document in ChromaDB."""
         try:
             results = self.collection.get(
-                where={"document_id": str(document_id)},
+                where={'document_id': str(document_id)},
             )
             if not results or not results['ids']:
                 return 0
@@ -612,12 +609,12 @@ class RAGPipeline:
                 metadatas=new_metadatas,
             )
             logger.info(
-                f"Updated ChromaDB metadata for document {document_id}: "
-                f"user_id={user_id}, is_shared={is_shared} ({len(results['ids'])} chunks)"
+                f'Updated ChromaDB metadata for document {document_id}: '
+                f'user_id={user_id}, is_shared={is_shared} ({len(results["ids"])} chunks)'
             )
             return len(results['ids'])
         except Exception as e:
-            logger.error(f"Error updating ChromaDB metadata for document {document_id}: {e}")
+            logger.error(f'Error updating ChromaDB metadata for document {document_id}: {e}')
             return 0
 
     def search(self, query: str, k: int = None, user_id: int | None = None) -> list[dict]:
@@ -625,7 +622,7 @@ class RAGPipeline:
         k = k or settings.SEARCH_K
 
         if self.collection.count() == 0:
-            logger.warning("ChromaDB collection is empty")
+            logger.warning('ChromaDB collection is empty')
             return []
 
         query_embedding = self.get_embedding(query)
@@ -634,9 +631,9 @@ class RAGPipeline:
         where_filter = None
         if user_id:
             where_filter = {
-                "$or": [
-                    {"user_id": str(user_id)},
-                    {"is_shared": "true"},
+                '$or': [
+                    {'user_id': str(user_id)},
+                    {'is_shared': 'true'},
                 ],
             }
 
@@ -649,17 +646,22 @@ class RAGPipeline:
 
         search_results = []
         if results and results['documents']:
-            for i, (doc, metadata, distance) in enumerate(zip(
-                results['documents'][0],
-                results['metadatas'][0],
-                results['distances'][0],
-            )):
-                search_results.append({
-                    'content': doc,
-                    'metadata': metadata,
-                    'relevance': round(1 - distance, 4),
-                    'rank': i + 1,
-                })
+            for i, (doc, metadata, distance) in enumerate(
+                zip(
+                    results['documents'][0],
+                    results['metadatas'][0],
+                    results['distances'][0],
+                    strict=False,
+                )
+            ):
+                search_results.append(
+                    {
+                        'content': doc,
+                        'metadata': metadata,
+                        'relevance': round(1 - distance, 4),
+                        'rank': i + 1,
+                    }
+                )
 
         logger.info(f"Search for '{query[:50]}...' returned {len(search_results)} results")
         return search_results
@@ -679,7 +681,7 @@ class RAGPipeline:
         """
         from core.models import Chunk
 
-        logger.info(f"Processing document: {document.original_filename}")
+        logger.info(f'Processing document: {document.original_filename}')
         document.status = 'processing'
         document.save(update_fields=['status'])
 
@@ -687,12 +689,12 @@ class RAGPipeline:
             # Step 1: Extract text
             text = self.extract_text(document.file_path, document.file_type)
             if not text.strip():
-                raise ValueError("No text content extracted from document")
+                raise ValueError('No text content extracted from document')
 
             # Step 2: Chunk text
             chunks = self.chunk_text(text)
             if not chunks:
-                raise ValueError("No chunks generated from document text")
+                raise ValueError('No chunks generated from document text')
 
             # Step 3 & 4: Generate embeddings and store in ChromaDB
             chroma_ids = self.add_chunks_to_chroma(
@@ -705,18 +707,20 @@ class RAGPipeline:
 
             # Step 5: Create Chunk model instances
             chunk_objects = []
-            for i, (chunk_text, chroma_id) in enumerate(zip(chunks, chroma_ids)):
-                chunk_objects.append(Chunk(
-                    document=document,
-                    content=chunk_text,
-                    chunk_index=i,
-                    chroma_id=chroma_id,
-                    metadata={
-                        'filename': document.original_filename,
-                        'chunk_index': i,
-                        'char_count': len(chunk_text),
-                    },
-                ))
+            for i, (chunk_text, chroma_id) in enumerate(zip(chunks, chroma_ids, strict=True)):
+                chunk_objects.append(
+                    Chunk(
+                        document=document,
+                        content=chunk_text,
+                        chunk_index=i,
+                        chroma_id=chroma_id,
+                        metadata={
+                            'filename': document.original_filename,
+                            'chunk_index': i,
+                            'char_count': len(chunk_text),
+                        },
+                    )
+                )
             Chunk.objects.bulk_create(chunk_objects)
 
             # Update document status
@@ -724,14 +728,11 @@ class RAGPipeline:
             document.processed_at = timezone.now()
             document.save(update_fields=['status', 'processed_at'])
 
-            logger.info(
-                f"Document processed successfully: {document.original_filename} "
-                f"({len(chunks)} chunks)"
-            )
+            logger.info(f'Document processed successfully: {document.original_filename} ({len(chunks)} chunks)')
             return len(chunks)
 
         except Exception as e:
-            logger.error(f"Error processing document {document.id}: {e}")
+            logger.error(f'Error processing document {document.id}: {e}')
             document.status = 'error'
             document.error_message = str(e)
             document.save(update_fields=['status', 'error_message'])
@@ -746,7 +747,7 @@ class RAGPipeline:
         RAG chat: search relevant context and generate answer with LLM.
         Returns dict with 'answer' and 'sources'.
         """
-        logger.info(f"Chat query (user={user_id}): {question[:100]}")
+        logger.info(f'Chat query (user={user_id}): {question[:100]}')
 
         # Search for relevant context (scoped to user)
         search_results = self.search(question, user_id=user_id)
@@ -764,12 +765,14 @@ class RAGPipeline:
         sources = []
         for result in search_results:
             context_parts.append(result['content'])
-            sources.append({
-                'filename': result['metadata'].get('filename', 'Unknown'),
-                'chunk_index': result['metadata'].get('chunk_index', 0),
-                'relevance': result['relevance'],
-                'preview': result['content'][:200] + '...' if len(result['content']) > 200 else result['content'],
-            })
+            sources.append(
+                {
+                    'filename': result['metadata'].get('filename', 'Unknown'),
+                    'chunk_index': result['metadata'].get('chunk_index', 0),
+                    'relevance': result['relevance'],
+                    'preview': result['content'][:200] + '...' if len(result['content']) > 200 else result['content'],
+                }
+            )
 
         context = '\n\n---\n\n'.join(context_parts)
 
@@ -817,11 +820,11 @@ class RAGPipeline:
         try:
             return self.llm.chat(model=settings.LLM_MODEL, prompt=prompt)
         except Exception as e:
-            logger.error(f"LLM error ({settings.LLM_BACKEND}): {e}")
-            backend_name = "Open WebUI" if settings.LLM_BACKEND == 'openwebui' else "Ollama"
+            logger.error(f'LLM error ({settings.LLM_BACKEND}): {e}')
+            backend_name = 'Open WebUI' if settings.LLM_BACKEND == 'openwebui' else 'Ollama'
             return (
-                f"Ошибка генерации ответа: {e}. "
-                f"Убедитесь, что {backend_name} запущена и модель {settings.LLM_MODEL} доступна."
+                f'Ошибка генерации ответа: {e}. '
+                f'Убедитесь, что {backend_name} запущена и модель {settings.LLM_MODEL} доступна.'
             )
 
     # -------------------------------------------------------------------------

@@ -46,4 +46,4 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         owner = self.user.username if self.user else '?'
-        return f"[{owner}/{self.get_role_display()}] {self.content[:80]}..."
+        return f'[{owner}/{self.get_role_display()}] {self.content[:80]}...'

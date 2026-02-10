@@ -28,12 +28,16 @@ def htmx_stats(request):
     pipeline = RAGPipeline.get_instance()
     ollama_info = pipeline.check_ollama_status()
 
-    return render(request, 'core/partials/stats.html', {
-        'docs_count': docs_count,
-        'chunks_count': chunks_count,
-        'total_size': format_size(total_size),
-        'ollama_status': ollama_info.get('status', 'unknown'),
-    })
+    return render(
+        request,
+        'core/partials/stats.html',
+        {
+            'docs_count': docs_count,
+            'chunks_count': chunks_count,
+            'total_size': format_size(total_size),
+            'ollama_status': ollama_info.get('status', 'unknown'),
+        },
+    )
 
 
 def htmx_chat_send(request):
@@ -43,9 +47,13 @@ def htmx_chat_send(request):
 
     question = request.POST.get('question', '').strip()
     if not question:
-        return render(request, 'core/partials/chat_error.html', {
-            'error': 'Введите вопрос',
-        })
+        return render(
+            request,
+            'core/partials/chat_error.html',
+            {
+                'error': 'Введите вопрос',
+            },
+        )
 
     # Save user message
     ChatMessage.objects.create(user=request.user, role='user', content=question)
@@ -62,16 +70,24 @@ def htmx_chat_send(request):
             sources=result.get('sources', []),
         )
 
-        return render(request, 'core/partials/chat_messages.html', {
-            'user_message': question,
-            'answer': result['answer'],
-            'sources': result.get('sources', []),
-        })
+        return render(
+            request,
+            'core/partials/chat_messages.html',
+            {
+                'user_message': question,
+                'answer': result['answer'],
+                'sources': result.get('sources', []),
+            },
+        )
     except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return render(request, 'core/partials/chat_error.html', {
-            'error': f'Ошибка: {str(e)}',
-        })
+        logger.error(f'Chat error: {e}')
+        return render(
+            request,
+            'core/partials/chat_error.html',
+            {
+                'error': f'Ошибка: {str(e)}',
+            },
+        )
 
 
 def htmx_upload(request):
@@ -81,22 +97,30 @@ def htmx_upload(request):
 
     uploaded_file = request.FILES.get('file')
     if not uploaded_file:
-        return render(request, 'core/partials/upload_result.html', {
-            'success': False,
-            'error': 'Файл не выбран',
-        })
+        return render(
+            request,
+            'core/partials/upload_result.html',
+            {
+                'success': False,
+                'error': 'Файл не выбран',
+            },
+        )
 
     # Validate file type
     ext = uploaded_file.name.rsplit('.', 1)[-1].lower() if '.' in uploaded_file.name else ''
     if ext not in ('pdf', 'txt', 'md'):
-        return render(request, 'core/partials/upload_result.html', {
-            'success': False,
-            'error': 'Неподдерживаемый формат. Допустимые: PDF, TXT, MD',
-        })
+        return render(
+            request,
+            'core/partials/upload_result.html',
+            {
+                'success': False,
+                'error': 'Неподдерживаемый формат. Допустимые: PDF, TXT, MD',
+            },
+        )
 
     try:
         # Save file
-        unique_name = f"{uuid.uuid4().hex[:12]}_{uploaded_file.name}"
+        unique_name = f'{uuid.uuid4().hex[:12]}_{uploaded_file.name}'
         upload_dir = os.path.join(settings.MEDIA_ROOT, 'documents')
         os.makedirs(upload_dir, exist_ok=True)
         file_path = os.path.join(upload_dir, unique_name)
@@ -120,26 +144,38 @@ def htmx_upload(request):
         pipeline = RAGPipeline.get_instance()
         chunks_count = pipeline.process_document(document)
 
-        return render(request, 'core/partials/upload_result.html', {
-            'success': True,
-            'document': document,
-            'chunks_count': chunks_count,
-        })
+        return render(
+            request,
+            'core/partials/upload_result.html',
+            {
+                'success': True,
+                'document': document,
+                'chunks_count': chunks_count,
+            },
+        )
 
     except Exception as e:
-        logger.error(f"Upload error: {e}")
-        return render(request, 'core/partials/upload_result.html', {
-            'success': False,
-            'error': str(e),
-        })
+        logger.error(f'Upload error: {e}')
+        return render(
+            request,
+            'core/partials/upload_result.html',
+            {
+                'success': False,
+                'error': str(e),
+            },
+        )
 
 
 def htmx_doc_list(request):
     """Return document list partial for HTMX."""
     documents = Document.objects.filter(user_docs_q(request.user))
-    return render(request, 'core/partials/doc_list.html', {
-        'documents': documents,
-    })
+    return render(
+        request,
+        'core/partials/doc_list.html',
+        {
+            'documents': documents,
+        },
+    )
 
 
 def htmx_doc_delete(request, doc_id):
@@ -166,31 +202,47 @@ def htmx_doc_delete(request, doc_id):
         document.delete()
 
         documents = Document.objects.filter(user_docs_q(request.user))
-        return render(request, 'core/partials/doc_list.html', {
-            'documents': documents,
-            'deleted': filename,
-        })
+        return render(
+            request,
+            'core/partials/doc_list.html',
+            {
+                'documents': documents,
+                'deleted': filename,
+            },
+        )
 
     except Exception as e:
-        logger.error(f"Delete error: {e}")
-        return render(request, 'core/partials/doc_list.html', {
-            'documents': Document.objects.filter(user_docs_q(request.user)),
-            'error': str(e),
-        })
+        logger.error(f'Delete error: {e}')
+        return render(
+            request,
+            'core/partials/doc_list.html',
+            {
+                'documents': Document.objects.filter(user_docs_q(request.user)),
+                'error': str(e),
+            },
+        )
 
 
 def htmx_chat_history(request):
     """Return chat history partial."""
     messages = ChatMessage.objects.filter(user=request.user).order_by('created_at')[:100]
-    return render(request, 'core/partials/chat_history.html', {
-        'messages': messages,
-    })
+    return render(
+        request,
+        'core/partials/chat_history.html',
+        {
+            'messages': messages,
+        },
+    )
 
 
 def htmx_clear_chat(request):
     """Clear chat history via HTMX."""
     if request.method == 'POST':
         ChatMessage.objects.filter(user=request.user).delete()
-    return render(request, 'core/partials/chat_history.html', {
-        'messages': [],
-    })
+    return render(
+        request,
+        'core/partials/chat_history.html',
+        {
+            'messages': [],
+        },
+    )

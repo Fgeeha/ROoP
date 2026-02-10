@@ -6,7 +6,16 @@ Re-exports all views for backward-compatible imports:
 """
 
 # UI pages
-from .ui import docs_view, index_view
+# REST API
+from .api import (
+    api_chat,
+    api_chat_clear,
+    api_chat_history,
+    api_doc_delete,
+    api_docs_list,
+    api_stats,
+    api_upload,
+)
 
 # HTMX partials
 from .htmx import (
@@ -21,17 +30,7 @@ from .htmx import (
 
 # Sharing
 from .sharing import create_share_chat, create_share_document, shared_view
-
-# REST API
-from .api import (
-    api_chat,
-    api_chat_clear,
-    api_chat_history,
-    api_doc_delete,
-    api_docs_list,
-    api_stats,
-    api_upload,
-)
+from .ui import docs_view, index_view
 
 __all__ = [
     # UI

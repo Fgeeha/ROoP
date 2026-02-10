@@ -36,6 +36,4 @@ class Command(BaseCommand):
                     f'({doc.original_filename}): user_id={doc.user_id}, is_shared={doc.is_shared}'
                 )
 
-        self.stdout.write(self.style.SUCCESS(
-            f'Done. Processed {total} documents, updated ChromaDB for {updated}.'
-        ))
+        self.stdout.write(self.style.SUCCESS(f'Done. Processed {total} documents, updated ChromaDB for {updated}.'))

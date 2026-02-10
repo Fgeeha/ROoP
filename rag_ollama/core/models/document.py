@@ -78,7 +78,7 @@ class Document(models.Model):
 
     def __str__(self):
         owner = self.user.username if self.user else 'shared'
-        return f"{self.original_filename} [{owner}] ({self.get_status_display()})"
+        return f'{self.original_filename} [{owner}] ({self.get_status_display()})'
 
     @property
     def chunks_count(self):
@@ -90,9 +90,9 @@ class Document(models.Model):
         size = self.size
         for unit in ['B', 'KB', 'MB', 'GB']:
             if size < 1024:
-                return f"{size:.1f} {unit}"
+                return f'{size:.1f} {unit}'
             size /= 1024
-        return f"{size:.1f} TB"
+        return f'{size:.1f} TB'
 
 
 class Chunk(models.Model):
@@ -132,4 +132,4 @@ class Chunk(models.Model):
         verbose_name_plural = 'Чанки'
 
     def __str__(self):
-        return f"Chunk {self.chunk_index} of {self.document.original_filename}"
+        return f'Chunk {self.chunk_index} of {self.document.original_filename}'

@@ -2,15 +2,27 @@
 Django Admin configuration for RAG system models.
 """
 
+import logging
+
 from django.contrib import admin
-from .models import Document, Chunk, ChatMessage, SharedLink, UserProfile
+
+from .models import ChatMessage, Chunk, Document, SharedLink, UserProfile
+
+logger = logging.getLogger('core')
 
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
     list_display = [
-        'id', 'original_filename', 'user', 'is_shared', 'file_type',
-        'size_display', 'status', 'chunks_count', 'uploaded_at',
+        'id',
+        'original_filename',
+        'user',
+        'is_shared',
+        'file_type',
+        'size_display',
+        'status',
+        'chunks_count',
+        'uploaded_at',
     ]
     list_filter = ['status', 'file_type', 'is_shared', 'uploaded_at']
     search_fields = ['original_filename', 'filename', 'user__username']
@@ -19,18 +31,30 @@ class DocumentAdmin(admin.ModelAdmin):
     list_per_page = 25
 
     fieldsets = (
-        ('Владелец и доступ', {
-            'fields': ('user', 'is_shared'),
-        }),
-        ('Основная информация', {
-            'fields': ('original_filename', 'filename', 'file_path', 'file_type', 'size', 'size_display'),
-        }),
-        ('Статус обработки', {
-            'fields': ('status', 'error_message', 'chunks_count'),
-        }),
-        ('Даты', {
-            'fields': ('uploaded_at', 'processed_at'),
-        }),
+        (
+            'Владелец и доступ',
+            {
+                'fields': ('user', 'is_shared'),
+            },
+        ),
+        (
+            'Основная информация',
+            {
+                'fields': ('original_filename', 'filename', 'file_path', 'file_type', 'size', 'size_display'),
+            },
+        ),
+        (
+            'Статус обработки',
+            {
+                'fields': ('status', 'error_message', 'chunks_count'),
+            },
+        ),
+        (
+            'Даты',
+            {
+                'fields': ('uploaded_at', 'processed_at'),
+            },
+        ),
     )
 
     actions = ['make_shared', 'make_private']
@@ -41,24 +65,26 @@ class DocumentAdmin(admin.ModelAdmin):
         self.message_user(request, f'{count} документов помечены как общие.')
         # Update ChromaDB metadata
         from .rag_pipeline import RAGPipeline
+
         try:
             pipeline = RAGPipeline.get_instance()
             for doc in queryset:
                 pipeline.update_chroma_metadata_for_document(doc.id, doc.user_id, True)
         except Exception:
-            pass
+            logger.exception('Failed to update ChromaDB metadata (make_shared)')
 
     @admin.action(description='Сделать выбранные документы приватными (только владелец)')
     def make_private(self, request, queryset):
         count = queryset.update(is_shared=False)
         self.message_user(request, f'{count} документов помечены как приватные.')
         from .rag_pipeline import RAGPipeline
+
         try:
             pipeline = RAGPipeline.get_instance()
             for doc in queryset:
                 pipeline.update_chroma_metadata_for_document(doc.id, doc.user_id, False)
         except Exception:
-            pass
+            logger.exception('Failed to update ChromaDB metadata (make_private)')
 
 
 @admin.register(Chunk)
@@ -70,9 +96,9 @@ class ChunkAdmin(admin.ModelAdmin):
     raw_id_fields = ['document']
     list_per_page = 50
 
+    @admin.display(description='Содержимое')
     def content_preview(self, obj):
         return obj.content[:100] + '...' if len(obj.content) > 100 else obj.content
-    content_preview.short_description = 'Содержимое'
 
 
 @admin.register(ChatMessage)
@@ -84,9 +110,9 @@ class ChatMessageAdmin(admin.ModelAdmin):
     raw_id_fields = ['user']
     list_per_page = 50
 
+    @admin.display(description='Содержимое')
     def content_preview(self, obj):
         return obj.content[:120] + '...' if len(obj.content) > 120 else obj.content
-    content_preview.short_description = 'Содержимое'
 
 
 @admin.register(SharedLink)
@@ -98,9 +124,9 @@ class SharedLinkAdmin(admin.ModelAdmin):
     raw_id_fields = ['user', 'document']
     list_per_page = 25
 
+    @admin.display(description='Токен')
     def token_preview(self, obj):
         return obj.token[:16] + '...'
-    token_preview.short_description = 'Токен'
 
 
 @admin.register(UserProfile)
@@ -110,11 +136,11 @@ class UserProfileAdmin(admin.ModelAdmin):
     search_fields = ['user__username', 'user__email']
     readonly_fields = ['created_at', 'email_token_created_at']
 
+    @admin.display(description='API-ключ')
     def personal_api_key_preview(self, obj):
         if obj.personal_api_key:
             return obj.personal_api_key[:12] + '...'
         return '-'
-    personal_api_key_preview.short_description = 'API-ключ'
 
 
 # Customize admin site

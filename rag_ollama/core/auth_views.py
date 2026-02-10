@@ -14,7 +14,6 @@ from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
-from django.utils import timezone
 from django.utils.html import strip_tags
 
 from .forms import LoginForm, ProfileForm, RegistrationForm
@@ -42,9 +41,13 @@ def register_view(request):
             # Send verification email
             _send_verification_email(request, user, token)
 
-            return render(request, 'core/auth/register_done.html', {
-                'email': user.email,
-            })
+            return render(
+                request,
+                'core/auth/register_done.html',
+                {
+                    'email': user.email,
+                },
+            )
     else:
         form = RegistrationForm()
 
@@ -56,16 +59,24 @@ def verify_email_view(request, token):
     try:
         profile = UserProfile.objects.get(email_verification_token=token)
     except UserProfile.DoesNotExist:
-        return render(request, 'core/auth/verify_result.html', {
-            'success': False,
-            'error': 'Ссылка недействительна или уже была использована.',
-        })
+        return render(
+            request,
+            'core/auth/verify_result.html',
+            {
+                'success': False,
+                'error': 'Ссылка недействительна или уже была использована.',
+            },
+        )
 
     if not profile.is_token_valid():
-        return render(request, 'core/auth/verify_result.html', {
-            'success': False,
-            'error': 'Срок действия ссылки истёк (24 часа). Зарегистрируйтесь повторно.',
-        })
+        return render(
+            request,
+            'core/auth/verify_result.html',
+            {
+                'success': False,
+                'error': 'Срок действия ссылки истёк (24 часа). Зарегистрируйтесь повторно.',
+            },
+        )
 
     # Activate user
     profile.is_email_verified = True
@@ -79,9 +90,13 @@ def verify_email_view(request, token):
     # Auto-login after verification
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
 
-    return render(request, 'core/auth/verify_result.html', {
-        'success': True,
-    })
+    return render(
+        request,
+        'core/auth/verify_result.html',
+        {
+            'success': True,
+        },
+    )
 
 
 def login_view(request):
@@ -132,19 +147,13 @@ def profile_view(request):
                     profile.save(update_fields=['is_email_verified'])
                     token = profile.generate_verification_token()
                     _send_verification_email(request, user, token)
-                    messages.info(
-                        request,
-                        'Email изменён. Письмо с подтверждением отправлено на новый адрес.'
-                    )
+                    messages.info(request, 'Email изменён. Письмо с подтверждением отправлено на новый адрес.')
                 else:
                     messages.success(request, 'Профиль обновлён.')
                 return redirect('core:profile')
         elif action == 'generate_api_key':
             api_key = profile.generate_api_key()
-            messages.success(
-                request,
-                f'Новый API ключ сгенерирован. Сохраните его: {api_key}'
-            )
+            messages.success(request, f'Новый API ключ сгенерирован. Сохраните его: {api_key}')
             return redirect('core:profile')
         elif action == 'resend_verification':
             if not profile.is_email_verified:
@@ -155,10 +164,14 @@ def profile_view(request):
     else:
         form = ProfileForm(instance=user)
 
-    return render(request, 'core/auth/profile.html', {
-        'form': form,
-        'profile': profile,
-    })
+    return render(
+        request,
+        'core/auth/profile.html',
+        {
+            'form': form,
+            'profile': profile,
+        },
+    )
 
 
 def resend_verification_view(request):
@@ -169,9 +182,13 @@ def resend_verification_view(request):
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
         if not email:
-            return render(request, 'core/auth/resend_verification.html', {
-                'error': 'Введите email.',
-            })
+            return render(
+                request,
+                'core/auth/resend_verification.html',
+                {
+                    'error': 'Введите email.',
+                },
+            )
 
         try:
             user = User.objects.get(email=email)
@@ -179,9 +196,13 @@ def resend_verification_view(request):
 
             if user.is_active and profile.is_email_verified:
                 # Already verified -- redirect to login
-                return render(request, 'core/auth/resend_verification.html', {
-                    'info': 'Этот email уже подтверждён. Войдите в систему.',
-                })
+                return render(
+                    request,
+                    'core/auth/resend_verification.html',
+                    {
+                        'info': 'Этот email уже подтверждён. Войдите в систему.',
+                    },
+                )
 
             # Generate new token and send
             token = profile.generate_verification_token()
@@ -191,9 +212,13 @@ def resend_verification_view(request):
             pass
 
         # Always show success (to prevent enumeration)
-        return render(request, 'core/auth/resend_verification_sent.html', {
-            'email': email,
-        })
+        return render(
+            request,
+            'core/auth/resend_verification_sent.html',
+            {
+                'email': email,
+            },
+        )
 
     return render(request, 'core/auth/resend_verification.html')
 
@@ -206,9 +231,13 @@ def password_reset_request_view(request):
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
         if not email:
-            return render(request, 'core/auth/password_reset.html', {
-                'error': 'Введите ваш email.',
-            })
+            return render(
+                request,
+                'core/auth/password_reset.html',
+                {
+                    'error': 'Введите ваш email.',
+                },
+            )
 
         try:
             user = User.objects.get(email=email)
@@ -220,9 +249,13 @@ def password_reset_request_view(request):
             pass
 
         # Always show success to prevent email enumeration
-        return render(request, 'core/auth/password_reset_sent.html', {
-            'email': email,
-        })
+        return render(
+            request,
+            'core/auth/password_reset_sent.html',
+            {
+                'email': email,
+            },
+        )
 
     return render(request, 'core/auth/password_reset.html')
 
@@ -232,32 +265,48 @@ def password_reset_confirm_view(request, token):
     try:
         profile = UserProfile.objects.get(email_verification_token=token)
     except UserProfile.DoesNotExist:
-        return render(request, 'core/auth/password_reset_confirm.html', {
-            'invalid': True,
-            'error': 'Ссылка недействительна или уже была использована.',
-        })
+        return render(
+            request,
+            'core/auth/password_reset_confirm.html',
+            {
+                'invalid': True,
+                'error': 'Ссылка недействительна или уже была использована.',
+            },
+        )
 
     if not profile.is_token_valid():
-        return render(request, 'core/auth/password_reset_confirm.html', {
-            'invalid': True,
-            'error': 'Срок действия ссылки истёк (24 часа). Запросите новую.',
-        })
+        return render(
+            request,
+            'core/auth/password_reset_confirm.html',
+            {
+                'invalid': True,
+                'error': 'Срок действия ссылки истёк (24 часа). Запросите новую.',
+            },
+        )
 
     if request.method == 'POST':
         password1 = request.POST.get('password1', '')
         password2 = request.POST.get('password2', '')
 
         if not password1 or len(password1) < 8:
-            return render(request, 'core/auth/password_reset_confirm.html', {
-                'error': 'Пароль должен быть не менее 8 символов.',
-                'token': token,
-            })
+            return render(
+                request,
+                'core/auth/password_reset_confirm.html',
+                {
+                    'error': 'Пароль должен быть не менее 8 символов.',
+                    'token': token,
+                },
+            )
 
         if password1 != password2:
-            return render(request, 'core/auth/password_reset_confirm.html', {
-                'error': 'Пароли не совпадают.',
-                'token': token,
-            })
+            return render(
+                request,
+                'core/auth/password_reset_confirm.html',
+                {
+                    'error': 'Пароли не совпадают.',
+                    'token': token,
+                },
+            )
 
         user = profile.user
         user.set_password(password1)
@@ -265,7 +314,7 @@ def password_reset_confirm_view(request, token):
         # Activate user if not yet active (proves email ownership)
         if not user.is_active:
             user.is_active = True
-            logger.info(f"User {user.username} activated via password reset")
+            logger.info(f'User {user.username} activated via password reset')
         user.save()
 
         # Mark email as verified and invalidate token
@@ -278,21 +327,28 @@ def password_reset_confirm_view(request, token):
 
         return render(request, 'core/auth/password_reset_done.html')
 
-    return render(request, 'core/auth/password_reset_confirm.html', {
-        'token': token,
-    })
+    return render(
+        request,
+        'core/auth/password_reset_confirm.html',
+        {
+            'token': token,
+        },
+    )
 
 
 def _send_password_reset_email(request, user, token):
     """Send password reset email via SMTP."""
     scheme = 'https' if request.is_secure() else 'http'
     host = request.get_host()
-    reset_url = f"{scheme}://{host}/accounts/password-reset/confirm/{token}/"
+    reset_url = f'{scheme}://{host}/accounts/password-reset/confirm/{token}/'
 
-    html_message = render_to_string('core/auth/email_password_reset.html', {
-        'user': user,
-        'reset_url': reset_url,
-    })
+    html_message = render_to_string(
+        'core/auth/email_password_reset.html',
+        {
+            'user': user,
+            'reset_url': reset_url,
+        },
+    )
 
     _send_email_with_retry(
         subject='ROoP - Сброс пароля',
@@ -305,12 +361,15 @@ def _send_verification_email(request, user, token):
     """Send email verification letter via SMTP."""
     scheme = 'https' if request.is_secure() else 'http'
     host = request.get_host()
-    verify_url = f"{scheme}://{host}/accounts/verify/{token}/"
+    verify_url = f'{scheme}://{host}/accounts/verify/{token}/'
 
-    html_message = render_to_string('core/auth/email_verify.html', {
-        'user': user,
-        'verify_url': verify_url,
-    })
+    html_message = render_to_string(
+        'core/auth/email_verify.html',
+        {
+            'user': user,
+            'verify_url': verify_url,
+        },
+    )
 
     _send_email_with_retry(
         subject='ROoP - Подтверждение email',
@@ -333,15 +392,12 @@ def _send_email_with_retry(subject, html_message, recipient, max_retries=3):
                 html_message=html_message,
                 fail_silently=False,
             )
-            logger.info(f"Email sent to {recipient} (attempt {attempt}): {subject}")
+            logger.info(f'Email sent to {recipient} (attempt {attempt}): {subject}')
             return True
         except Exception as e:
-            logger.warning(
-                f"Email send attempt {attempt}/{max_retries} failed "
-                f"to {recipient}: {type(e).__name__}: {e}"
-            )
+            logger.warning(f'Email send attempt {attempt}/{max_retries} failed to {recipient}: {type(e).__name__}: {e}')
             if attempt < max_retries:
                 time.sleep(2 * attempt)  # backoff: 2s, 4s
 
-    logger.error(f"All {max_retries} attempts to send email to {recipient} failed: {subject}")
+    logger.error(f'All {max_retries} attempts to send email to {recipient} failed: {subject}')
     return False

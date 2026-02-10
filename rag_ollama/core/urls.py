@@ -20,15 +20,17 @@ urlpatterns = [
     path('accounts/verify/<str:token>/', auth_views.verify_email_view, name='verify_email'),
     path('accounts/resend-verification/', auth_views.resend_verification_view, name='resend_verification'),
     path('accounts/password-reset/', auth_views.password_reset_request_view, name='password_reset'),
-    path('accounts/password-reset/confirm/<str:token>/', auth_views.password_reset_confirm_view, name='password_reset_confirm'),
+    path(
+        'accounts/password-reset/confirm/<str:token>/',
+        auth_views.password_reset_confirm_view,
+        name='password_reset_confirm',
+    ),
     path('accounts/profile/', auth_views.profile_view, name='profile'),
-
     # =========================================================================
     # UI Views (Django Templates + HTMX) - require login
     # =========================================================================
     path('', login_required(views.index_view), name='index'),
     path('docs/', login_required(views.docs_view), name='docs'),
-
     # HTMX partials (also require login)
     path('htmx/stats/', login_required(views.htmx_stats), name='htmx_stats'),
     path('htmx/chat/send/', login_required(views.htmx_chat_send), name='htmx_chat_send'),
@@ -37,14 +39,12 @@ urlpatterns = [
     path('htmx/upload/', login_required(views.htmx_upload), name='htmx_upload'),
     path('htmx/docs/', login_required(views.htmx_doc_list), name='htmx_doc_list'),
     path('htmx/docs/<int:doc_id>/delete/', login_required(views.htmx_doc_delete), name='htmx_doc_delete'),
-
     # =========================================================================
     # Sharing (create requires login, view is public)
     # =========================================================================
     path('share/chat/', login_required(views.create_share_chat), name='share_chat'),
     path('share/doc/<int:doc_id>/', login_required(views.create_share_document), name='share_document'),
     path('s/<str:token>/', views.shared_view, name='shared_view'),
-
     # =========================================================================
     # REST API Endpoints (auth handled by DRF permissions)
     # =========================================================================

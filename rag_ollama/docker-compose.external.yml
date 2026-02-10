@@ -1,58 +1,70 @@
 # =============================================================================
-# Docker Compose: Ollama on a REMOTE server (or Open WebUI)
+# Docker Compose: Ollama на УДАЛЁННОМ сервере (или Open WebUI)
 # =============================================================================
+# Только Django + PostgreSQL, без локального Ollama.
 #
-# Use when Ollama is already running on another machine, or when using
-# Open WebUI as a proxy (set LLM_BACKEND=openwebui in .env).
-# Only starts Django -- no local Ollama container.
+# Настройте .env:
+#   - Прямой Ollama:  LLM_BACKEND=ollama + OLLAMA_URL=http://192.168.1.100:11434
+#   - Open WebUI:     LLM_BACKEND=openwebui + OPENWEBUI_URL + OPENWEBUI_API_KEY
 #
-# Before starting:
-#   1. Edit .env:
-#      - For direct Ollama:   OLLAMA_URL=http://192.168.1.100:11434
-#      - For Open WebUI:      LLM_BACKEND=openwebui + OPENWEBUI_URL + OPENWEBUI_API_KEY
-#
-#   2. Make sure models are available on the remote side.
-#
-# Start:
-#   make up-external
-#   or:
-#   docker compose -f docker-compose.external.yml up -d
-#
+# Запуск: docker compose -f docker-compose.external.yml up -d
+# или:    make up-external
 
 services:
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: roop-postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-roop}
+      POSTGRES_USER: ${POSTGRES_USER:-roop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-roop}
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-roop} -d ${POSTGRES_DB:-roop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
   django:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: rag-django
+    container_name: roop-django
     ports:
       - "8000:8000"
     volumes:
-      - db_data:/app/data
       - chroma_data:/app/chroma_data
       - media_data:/app/media
       - log_data:/app/logs
     env_file:
       - .env
     environment:
+      - POSTGRES_HOST=postgres
       - CHROMA_PERSIST_DIR=/app/chroma_data
       - DJANGO_SUPERUSER_USERNAME=admin
       - DJANGO_SUPERUSER_PASSWORD=admin123
       - DJANGO_SUPERUSER_EMAIL=admin@localhost
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 15s
+      start_period: 20s
 
 volumes:
-  db_data:
-    driver: local
+  postgres_data:
   chroma_data:
-    driver: local
   media_data:
-    driver: local
   log_data:
-    driver: local

@@ -9,10 +9,12 @@ class CoreConfig(AppConfig):
     def ready(self):
         """Initialize ChromaDB collection on app startup."""
         import logging
+
         logger = logging.getLogger(__name__)
         try:
             from core.rag_pipeline import RAGPipeline
+
             RAGPipeline.get_instance()
-            logger.info("RAG Pipeline initialized successfully")
+            logger.info('RAG Pipeline initialized successfully')
         except Exception as e:
-            logger.warning(f"RAG Pipeline initialization deferred: {e}")
+            logger.warning(f'RAG Pipeline initialization deferred: {e}')

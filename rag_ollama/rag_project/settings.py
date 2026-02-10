@@ -5,6 +5,7 @@ Production-ready configuration for local closed-circuit RAG system.
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env
@@ -67,11 +68,18 @@ TEMPLATES = [
 WSGI_APPLICATION = 'rag_project.wsgi.application'
 ASGI_APPLICATION = 'rag_project.asgi.application'
 
-# Database - SQLite for simplicity (local deployment)
+# Database - PostgreSQL
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': Path(os.getenv('DB_PATH', str(BASE_DIR / 'data' / 'db.sqlite3'))),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB', 'roop'),
+        'USER': os.getenv('POSTGRES_USER', 'roop'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'roop'),
+        'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        'OPTIONS': {
+            'connect_timeout': 5,
+        },
     }
 }
 
@@ -145,7 +153,7 @@ CORS_ALLOWED_ORIGINS = [
 # For closed-circuit / corporate networks this is safe.
 _csrf_origins = set()
 for _host in ALLOWED_HOSTS:
-    if _host in ('*', '0.0.0.0'):
+    if _host in ('*', '0.0.0.0'):  # noqa: S104
         continue  # skip wildcards, handled below
     _csrf_origins.add(f'http://{_host}')
     _csrf_origins.add(f'http://{_host}:8000')
@@ -157,12 +165,16 @@ for _origin in os.getenv('CSRF_EXTRA_ORIGINS', '').split(','):
     if _origin:
         _csrf_origins.add(_origin)
 
-CSRF_TRUSTED_ORIGINS = sorted(_csrf_origins) if _csrf_origins else [
-    'http://localhost',
-    'http://localhost:8000',
-    'http://127.0.0.1',
-    'http://127.0.0.1:8000',
-]
+CSRF_TRUSTED_ORIGINS = (
+    sorted(_csrf_origins)
+    if _csrf_origins
+    else [
+        'http://localhost',
+        'http://localhost:8000',
+        'http://127.0.0.1',
+        'http://127.0.0.1:8000',
+    ]
+)
 
 # If ALLOWED_HOSTS contains '*', we're on a local/corporate network.
 # Disable Origin check so any host is trusted.
@@ -203,9 +215,7 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 # Email / SMTP
-EMAIL_BACKEND = os.getenv(
-    'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend'
-)
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
@@ -231,8 +241,8 @@ elif _email_encryption == 'none':
     EMAIL_USE_TLS = False
 else:
     # Auto-detect from port
-    EMAIL_USE_SSL = (EMAIL_PORT == 465)
-    EMAIL_USE_TLS = (EMAIL_PORT == 587)
+    EMAIL_USE_SSL = EMAIL_PORT == 465
+    EMAIL_USE_TLS = EMAIL_PORT == 587
 
 # For development/testing without real SMTP, use console backend:
 # EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend

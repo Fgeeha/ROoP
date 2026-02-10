@@ -267,27 +267,64 @@ docker-manage: ## Run Django manage.py in container (usage: make docker-manage C
 	docker exec -it rag-django python manage.py $(CMD)
 
 # ==============================================================================
-# Development & Quality
+# Linting & Formatting
 # ==============================================================================
 
 .PHONY: lint
-lint: ## Run ruff linter
-	$(POETRY) run ruff check .
+lint: ## Run ruff lint
+	poetry run ruff check . --config pyproject.toml
+	@printf "\033[0;32mLint passed\033[0m\n"
 
 .PHONY: lint-fix
-lint-fix: ## Run ruff linter with auto-fix
-	$(POETRY) run ruff check --fix .
+lint-fix: ## Run ruff lint with auto-fix
+	poetry run ruff check . --fix --config pyproject.toml
+	@printf "\033[0;32mLint fix done\033[0m\n"
 
-.PHONY: format
-format: ## Format code with ruff
-	$(POETRY) run ruff format .
+.PHONY: fmt
+fmt: ## Format code with ruff
+	poetry run ruff format . --config pyproject.toml
+	@printf "\033[0;32mFormatted\033[0m\n"
 
-.PHONY: test
-test: ## Run tests with pytest
-	$(POETRY) run pytest -v
+.PHONY: fmt-check
+fmt-check: ## Check formatting without changes
+	poetry run ruff format --check . --config pyproject.toml
+	@printf "\033[0;32mFormat check passed\033[0m\n"
 
 .PHONY: check
-check: lint test ## Run linter and tests
+check: lint fmt-check ## Run all checks (lint + format)
+	@printf "\033[0;32mAll checks passed\033[0m\n"
+
+# ==============================================================================
+# Pre-commit
+# ==============================================================================
+
+.PHONY: pre-commit-install
+pre-commit-install: ## Install pre-commit hooks
+	poetry run pre-commit install --config ../.pre-commit-config.yaml
+	@printf "\033[0;32mPre-commit hooks installed\033[0m\n"
+
+.PHONY: pre-commit-run
+pre-commit-run: ## Run pre-commit on all files
+	poetry run pre-commit run --all-files --config ../.pre-commit-config.yaml
+	@printf "\033[0;32mPre-commit passed\033[0m\n"
+
+.PHONY: pre-commit-update
+pre-commit-update: ## Update pre-commit hooks to latest versions
+	cd .. && poetry run pre-commit autoupdate
+	@printf "\033[0;32mPre-commit hooks updated\033[0m\n"
+
+# ==============================================================================
+# Testing
+# ==============================================================================
+
+.PHONY: test
+test: ## Run tests
+	poetry run pytest
+
+.PHONY: test-cov
+test-cov: ## Run tests with coverage report
+	poetry run pytest --cov=core --cov-report=term-missing --cov-report=html
+	@printf "\033[0;32mCoverage report: htmlcov/index.html\033[0m\n"
 
 # ==============================================================================
 # Cleanup

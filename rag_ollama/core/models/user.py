@@ -50,7 +50,7 @@ class UserProfile(models.Model):
 
     def __str__(self):
         verified = 'verified' if self.is_email_verified else 'unverified'
-        return f"{self.user.username} ({verified})"
+        return f'{self.user.username} ({verified})'
 
     def generate_verification_token(self):
         """Generate a new email verification token."""
@@ -68,6 +68,6 @@ class UserProfile(models.Model):
 
     def generate_api_key(self):
         """Generate a new personal API key."""
-        self.personal_api_key = f"roop_{secrets.token_hex(24)}"
+        self.personal_api_key = f'roop_{secrets.token_hex(24)}'
         self.save(update_fields=['personal_api_key'])
         return self.personal_api_key

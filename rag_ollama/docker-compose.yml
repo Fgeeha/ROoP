@@ -1,10 +1,35 @@
+# =============================================================================
+# Docker Compose: GPU (NVIDIA) + локальный Ollama
+# =============================================================================
+# Запуск: docker compose up -d
+# или:    make up-build
+
 services:
-  # ==========================================================================
-  # Ollama - Local LLM service
-  # ==========================================================================
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: roop-postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-roop}
+      POSTGRES_USER: ${POSTGRES_USER:-roop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-roop}
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-roop} -d ${POSTGRES_DB:-roop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:latest
-    container_name: rag-ollama
+    container_name: roop-ollama
     ports:
       - "11434:11434"
     volumes:
@@ -23,12 +48,10 @@ services:
               count: all
               capabilities: [gpu]
 
-  # ==========================================================================
-  # Ollama model pull (init container)
-  # ==========================================================================
+  # --------------------------------------------------------------------------
   ollama-pull:
     image: ollama/ollama:latest
-    container_name: rag-ollama-pull
+    container_name: roop-ollama-pull
     depends_on:
       ollama:
         condition: service_healthy
@@ -43,30 +66,30 @@ services:
       - OLLAMA_HOST=http://ollama:11434
     restart: "no"
 
-  # ==========================================================================
-  # Django RAG Application
-  # ==========================================================================
+  # --------------------------------------------------------------------------
   django:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: rag-django
+    container_name: roop-django
     ports:
       - "8000:8000"
     volumes:
-      - db_data:/app/data
       - chroma_data:/app/chroma_data
       - media_data:/app/media
       - log_data:/app/logs
     env_file:
       - .env
     environment:
+      - POSTGRES_HOST=postgres
       - OLLAMA_URL=http://ollama:11434
       - CHROMA_PERSIST_DIR=/app/chroma_data
       - DJANGO_SUPERUSER_USERNAME=admin
       - DJANGO_SUPERUSER_PASSWORD=admin123
       - DJANGO_SUPERUSER_EMAIL=admin@localhost
     depends_on:
+      postgres:
+        condition: service_healthy
       ollama:
         condition: service_healthy
     restart: unless-stopped
@@ -75,16 +98,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 15s
+      start_period: 20s
 
 volumes:
+  postgres_data:
   ollama_data:
-    driver: local
-  db_data:
-    driver: local
   chroma_data:
-    driver: local
   media_data:
-    driver: local
   log_data:
-    driver: local

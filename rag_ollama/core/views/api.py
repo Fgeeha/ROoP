@@ -48,7 +48,7 @@ def api_upload(request):
     ext = uploaded_file.name.rsplit('.', 1)[-1].lower()
 
     # Save file to disk
-    unique_name = f"{uuid.uuid4().hex[:12]}_{uploaded_file.name}"
+    unique_name = f'{uuid.uuid4().hex[:12]}_{uploaded_file.name}'
     upload_dir = os.path.join(settings.MEDIA_ROOT, 'documents')
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, unique_name)
@@ -74,22 +74,28 @@ def api_upload(request):
         chunks_count = pipeline.process_document(document)
 
         document.refresh_from_db()
-        return Response({
-            'id': document.id,
-            'filename': document.original_filename,
-            'chunks': chunks_count,
-            'status': document.status,
-            'size': document.size_display,
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                'id': document.id,
+                'filename': document.original_filename,
+                'chunks': chunks_count,
+                'status': document.status,
+                'size': document.size_display,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     except Exception as e:
         document.refresh_from_db()
-        return Response({
-            'id': document.id,
-            'filename': document.original_filename,
-            'status': document.status,
-            'error': str(e),
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {
+                'id': document.id,
+                'filename': document.original_filename,
+                'status': document.status,
+                'error': str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @api_view(['POST'])
@@ -123,11 +129,14 @@ def api_chat(request):
         return Response(response_serializer.data)
 
     except Exception as e:
-        logger.error(f"API chat error: {e}")
-        return Response({
-            'error': str(e),
-            'question': question,
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f'API chat error: {e}')
+        return Response(
+            {
+                'error': str(e),
+                'question': question,
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @api_view(['GET'])
@@ -165,15 +174,21 @@ def api_doc_delete(request, doc_id):
 
         document.delete()
 
-        return Response({
-            'message': f'Документ {doc_id} успешно удален',
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {
+                'message': f'Документ {doc_id} успешно удален',
+            },
+            status=status.HTTP_200_OK,
+        )
 
     except Exception as e:
-        logger.error(f"API delete error: {e}")
-        return Response({
-            'error': str(e),
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f'API delete error: {e}')
+        return Response(
+            {
+                'error': str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @api_view(['GET'])
@@ -192,15 +207,17 @@ def api_stats(request):
     ollama_info = pipeline.check_ollama_status()
     chroma_info = pipeline.check_chroma_status()
 
-    return Response({
-        'docs_count': docs_count,
-        'chunks_count': chunks_count,
-        'total_size': format_size(total_size_bytes),
-        'ollama_status': ollama_info.get('status', 'unknown'),
-        'ollama_models': ollama_info.get('models', []),
-        'chroma_status': chroma_info.get('status', 'unknown'),
-        'chroma_docs': chroma_info.get('documents_in_collection', 0),
-    })
+    return Response(
+        {
+            'docs_count': docs_count,
+            'chunks_count': chunks_count,
+            'total_size': format_size(total_size_bytes),
+            'ollama_status': ollama_info.get('status', 'unknown'),
+            'ollama_models': ollama_info.get('models', []),
+            'chroma_status': chroma_info.get('status', 'unknown'),
+            'chroma_docs': chroma_info.get('documents_in_collection', 0),
+        }
+    )
 
 
 @api_view(['GET'])

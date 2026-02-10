@@ -1,14 +1,34 @@
 #!/bin/bash
 set -e
 
-echo "=== RAG Ollama - Starting ==="
+echo "=== ROoP - Starting ==="
 
-# Ensure writable directories exist (volumes may be mounted as root)
+# Ensure writable directories exist
 for dir in /app/logs /app/media/documents /app/chroma_data /app/staticfiles; do
     mkdir -p "$dir" 2>/dev/null || true
-    # Try to fix ownership if running as root (otherwise skip silently)
     chown -R "$(id -u):$(id -g)" "$dir" 2>/dev/null || true
 done
+
+# Wait for PostgreSQL
+if [ -n "$POSTGRES_HOST" ]; then
+    echo "Waiting for PostgreSQL at ${POSTGRES_HOST}:${POSTGRES_PORT:-5432}..."
+    for i in $(seq 1 30); do
+        if python -c "
+import socket, sys
+try:
+    s = socket.create_connection(('${POSTGRES_HOST}', ${POSTGRES_PORT:-5432}), timeout=2)
+    s.close()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+            echo "PostgreSQL is ready."
+            break
+        fi
+        echo "  attempt $i/30..."
+        sleep 2
+    done
+fi
 
 # Run migrations
 echo "Running migrations..."
@@ -24,11 +44,11 @@ if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
     python manage.py createsuperuser --noinput 2>/dev/null || true
 fi
 
-# Sync ChromaDB metadata (user_id, is_shared) after migrations
+# Sync ChromaDB metadata
 echo "Syncing ChromaDB metadata..."
 python manage.py sync_chroma_metadata 2>/dev/null || true
 
-echo "=== RAG Ollama - Ready ==="
+echo "=== ROoP - Ready ==="
 echo "Starting Gunicorn on port 8000..."
 
 # Start Gunicorn

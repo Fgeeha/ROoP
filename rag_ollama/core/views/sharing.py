@@ -23,7 +23,7 @@ def create_share_chat(request):
 
     scheme = 'https' if request.is_secure() else 'http'
     host = request.get_host()
-    share_url = f"{scheme}://{host}/s/{link.token}/"
+    share_url = f'{scheme}://{host}/s/{link.token}/'
 
     return JsonResponse({'url': share_url, 'token': link.token})
 
@@ -45,7 +45,7 @@ def create_share_document(request, doc_id):
 
     scheme = 'https' if request.is_secure() else 'http'
     host = request.get_host()
-    share_url = f"{scheme}://{host}/s/{link.token}/"
+    share_url = f'{scheme}://{host}/s/{link.token}/'
 
     return JsonResponse({'url': share_url, 'token': link.token})
 
@@ -59,20 +59,28 @@ def shared_view(request, token):
 
     if link.share_type == 'chat':
         messages = ChatMessage.objects.filter(user=link.user).order_by('created_at')[:200]
-        return render(request, 'core/shared_chat.html', {
-            'messages': messages,
-            'owner': link.user,
-            'shared_link': link,
-        })
+        return render(
+            request,
+            'core/shared_chat.html',
+            {
+                'messages': messages,
+                'owner': link.user,
+                'shared_link': link,
+            },
+        )
 
     elif link.share_type == 'document':
         document = link.document
         if not document:
             return render(request, 'core/shared_expired.html', status=410)
-        return render(request, 'core/shared_document.html', {
-            'document': document,
-            'owner': link.user,
-            'shared_link': link,
-        })
+        return render(
+            request,
+            'core/shared_document.html',
+            {
+                'document': document,
+                'owner': link.user,
+                'shared_link': link,
+            },
+        )
 
     return render(request, 'core/shared_expired.html', status=410)

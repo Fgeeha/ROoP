@@ -21,9 +21,9 @@ class APIKeyAuthentication(BaseAuthentication):
 
     def authenticate(self, request):
         # Check Authorization header
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        auth_header = request.headers.get('authorization', '')
         if auth_header.startswith(self.keyword + ' '):
-            api_key = auth_header[len(self.keyword) + 1:].strip()
+            api_key = auth_header[len(self.keyword) + 1 :].strip()
             return self._validate_key(api_key, request)
 
         # Check query parameter

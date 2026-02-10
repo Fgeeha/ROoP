@@ -63,7 +63,7 @@ class SharedLink(models.Model):
         verbose_name_plural = 'Публичные ссылки'
 
     def __str__(self):
-        return f"{self.get_share_type_display()} by {self.user.username} ({self.token[:8]}...)"
+        return f'{self.get_share_type_display()} by {self.user.username} ({self.token[:8]}...)'
 
     @staticmethod
     def generate_token():
@@ -73,6 +73,4 @@ class SharedLink(models.Model):
     def is_valid(self):
         if not self.is_active:
             return False
-        if self.expires_at and timezone.now() > self.expires_at:
-            return False
-        return True
+        return not (self.expires_at and timezone.now() > self.expires_at)

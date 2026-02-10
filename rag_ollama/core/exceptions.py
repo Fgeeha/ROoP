@@ -17,9 +17,7 @@ def custom_exception_handler(exc, context):
         view = context.get('view', None)
         view_name = view.__class__.__name__ if view else 'Unknown'
 
-        logger.warning(
-            f"API Error in {view_name}: {response.status_code} - {response.data}"
-        )
+        logger.warning(f'API Error in {view_name}: {response.status_code} - {response.data}')
 
         response.data = {
             'error': True,
@@ -27,6 +25,6 @@ def custom_exception_handler(exc, context):
             'detail': response.data,
         }
     else:
-        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        logger.error(f'Unhandled exception: {exc}', exc_info=True)
 
     return response

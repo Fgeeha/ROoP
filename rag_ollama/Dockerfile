@@ -1,8 +1,9 @@
 FROM python:3.12-slim
 
-# System deps
+# System deps (libpq-dev for PostgreSQL, libmagic1 for file type detection)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
+    libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,7 +26,7 @@ RUN poetry install --only main --no-root \
 COPY . .
 
 # Create directories
-RUN mkdir -p /app/media/documents /app/chroma_data /app/logs /app/staticfiles /app/data
+RUN mkdir -p /app/media/documents /app/chroma_data /app/logs /app/staticfiles
 
 # Collect static files
 RUN SECRET_KEY=build-placeholder python manage.py collectstatic --noinput 2>/dev/null || true
