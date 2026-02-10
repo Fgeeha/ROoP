@@ -1,0 +1,75 @@
+default_language_version:
+  python: python3
+
+exclude: |
+  (?x)^(
+    data/|
+    docs/|
+    venv/|
+    env/|
+    __pycache__/|
+    .*?/migrations/|
+    .*?/staticfiles/|
+    .*?/media/
+  )
+
+repos:
+  # ------------------------------------------------------------
+  # Базовые "гигиенические" хуки
+  # ------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  # ------------------------------------------------------------
+  # Ruff = линтер + форматтер + сортировка импортов
+  # ------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      # Линт + автофиксы (включая импорты)
+      - id: ruff
+        args:
+          - --fix
+          - --exit-non-zero-on-fix
+          - --config
+          - rag_ollama/pyproject.toml
+        files: ^rag_ollama/
+
+      # Форматирование (замена Black)
+      - id: ruff-format
+        args:
+          - --config
+          - rag_ollama/pyproject.toml
+        files: ^rag_ollama/
+
+  # ------------------------------------------------------------
+  # Django-upgrade
+  # ------------------------------------------------------------
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: 1.29.1
+    hooks:
+      - id: django-upgrade
+        args: [--target-version, "5.1"]
+
+  # ------------------------------------------------------------
+  # Pytest (ручной запуск: pre-commit run pytest --hook-stage manual)
+  # ------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (manual)
+        entry: bash -c 'cd rag_ollama && poetry run pytest'
+        language: system
+        pass_filenames: false
+        stages: [manual]

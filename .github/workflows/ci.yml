@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [Master, develop]
+  pull_request:
+    branches: [Master, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ----------------------------------------------------------
+  # Dockerfile lint
+  # ----------------------------------------------------------
+  dockerfile-lint:
+    name: Hadolint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: rag_ollama/Dockerfile
+          config: .hadolint.yaml
+
+  # ----------------------------------------------------------
+  # Backend: lint + format + migrations check + tests
+  # ----------------------------------------------------------
+  backend:
+    name: Backend CI
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: roop_test
+          POSTGRES_USER: roop_test
+          POSTGRES_PASSWORD: roop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U roop_test -d roop_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      SECRET_KEY: test-secret-key-for-ci
+      DEBUG: "false"
+      POSTGRES_DB: roop_test
+      POSTGRES_USER: roop_test
+      POSTGRES_PASSWORD: roop_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      CHROMA_PERSIST_DIR: /tmp/chroma_test
+
+    defaults:
+      run:
+        working-directory: rag_ollama
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.1.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry venv
+        uses: actions/cache@v4
+        with:
+          path: rag_ollama/.venv
+          key: venv-${{ runner.os }}-py3.12-${{ hashFiles('rag_ollama/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py3.12-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Ruff lint
+        run: poetry run ruff check . --config pyproject.toml
+
+      - name: Ruff format check
+        run: poetry run ruff format --check . --config pyproject.toml
+
+      - name: Check migrations
+        run: poetry run python manage.py makemigrations --check --dry-run --no-input
+
+      - name: Run tests
+        env:
+          DEBUG: "true"
+        run: |
+          poetry run pytest \
+            --cov=core \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: rag_ollama/coverage.xml
+          flags: backend
+          name: roop-backend
+        continue-on-error: true

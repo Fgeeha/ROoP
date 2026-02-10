@@ -1,0 +1,11 @@
+ignored:
+  # DL3008: Pin versions in apt-get install
+  - DL3008
+  # DL3013: Pin versions in pip install
+  - DL3013
+  # DL3059: Multiple consecutive RUN instructions (Poetry install pattern)
+  - DL3059
+
+trustedRegistries:
+  - docker.io
+  - ghcr.io
