@@ -56,6 +56,7 @@ build-backend = "poetry.core.masonry.api"
 target-version = "py311"
 line-length = 120
 src = ["."]
+extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = [
