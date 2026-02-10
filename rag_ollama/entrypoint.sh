@@ -24,6 +24,10 @@ if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
     python manage.py createsuperuser --noinput 2>/dev/null || true
 fi
 
+# Sync ChromaDB metadata (user_id, is_shared) after migrations
+echo "Syncing ChromaDB metadata..."
+python manage.py sync_chroma_metadata 2>/dev/null || true
+
 echo "=== RAG Ollama - Ready ==="
 echo "Starting Gunicorn on port 8000..."
 

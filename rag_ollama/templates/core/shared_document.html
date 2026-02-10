@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+
+{% block title %}Общий документ - ROoP{% endblock %}
+
+{% block content %}
+<div class="shared-container">
+    <div class="shared-header">
+        <div class="shared-badge">Только чтение</div>
+        <h1>Общий документ</h1>
+        <p class="shared-meta">
+            Опубликовал {{ owner.username }} | {{ shared_link.created_at|date:"d.m.Y H:i" }}
+        </p>
+    </div>
+
+    <div class="shared-document-card">
+        <div class="doc-info-grid">
+            <div class="doc-info-item">
+                <span class="doc-info-label">Имя файла</span>
+                <span class="doc-info-value">{{ document.original_filename }}</span>
+            </div>
+            <div class="doc-info-item">
+                <span class="doc-info-label">Тип</span>
+                <span class="doc-info-value">
+                    <span class="badge badge-{{ document.file_type }}">{{ document.file_type|upper }}</span>
+                </span>
+            </div>
+            <div class="doc-info-item">
+                <span class="doc-info-label">Размер</span>
+                <span class="doc-info-value">{{ document.size_display }}</span>
+            </div>
+            <div class="doc-info-item">
+                <span class="doc-info-label">Фрагменты</span>
+                <span class="doc-info-value">{{ document.chunks_count }}</span>
+            </div>
+            <div class="doc-info-item">
+                <span class="doc-info-label">Статус</span>
+                <span class="doc-info-value">{{ document.get_status_display }}</span>
+            </div>
+            <div class="doc-info-item">
+                <span class="doc-info-label">Загружен</span>
+                <span class="doc-info-value">{{ document.uploaded_at|date:"d.m.Y H:i" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="shared-notice">
+        Это общедоступный просмотр. Изменение документа недоступно.
+    </div>
+</div>
+{% endblock %}

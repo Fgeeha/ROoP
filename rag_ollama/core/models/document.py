@@ -1,8 +1,8 @@
 """
-Django models for RAG system.
-Document and Chunk models for tracking uploaded documents and their processed chunks.
+Document and Chunk models for RAG system.
 """
 
+from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
@@ -16,6 +16,20 @@ class Document(models.Model):
         COMPLETED = 'completed', 'Обработан'
         ERROR = 'error', 'Ошибка'
 
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        null=True,
+        blank=True,
+        verbose_name='Владелец',
+        help_text='null = общий документ (администратор)',
+    )
+    is_shared = models.BooleanField(
+        default=False,
+        verbose_name='Общий доступ',
+        help_text='Доступен всем пользователям для RAG-поиска',
+    )
     filename = models.CharField(
         max_length=500,
         verbose_name='Имя файла',
@@ -63,7 +77,8 @@ class Document(models.Model):
         verbose_name_plural = 'Документы'
 
     def __str__(self):
-        return f"{self.original_filename} ({self.get_status_display()})"
+        owner = self.user.username if self.user else 'shared'
+        return f"{self.original_filename} [{owner}] ({self.get_status_display()})"
 
     @property
     def chunks_count(self):
@@ -118,37 +133,3 @@ class Chunk(models.Model):
 
     def __str__(self):
         return f"Chunk {self.chunk_index} of {self.document.original_filename}"
-
-
-class ChatMessage(models.Model):
-    """Chat history model."""
-
-    class Role(models.TextChoices):
-        USER = 'user', 'Пользователь'
-        ASSISTANT = 'assistant', 'Ассистент'
-
-    role = models.CharField(
-        max_length=20,
-        choices=Role.choices,
-        verbose_name='Роль',
-    )
-    content = models.TextField(
-        verbose_name='Содержимое',
-    )
-    sources = models.JSONField(
-        default=list,
-        blank=True,
-        verbose_name='Источники',
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Дата создания',
-    )
-
-    class Meta:
-        ordering = ['created_at']
-        verbose_name = 'Сообщение чата'
-        verbose_name_plural = 'Сообщения чата'
-
-    def __str__(self):
-        return f"[{self.get_role_display()}] {self.content[:80]}..."

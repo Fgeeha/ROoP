@@ -3,7 +3,7 @@ Django REST Framework serializers for RAG system.
 """
 
 from rest_framework import serializers
-from .models import Document, Chunk, ChatMessage
+from .models import Document, Chunk, ChatMessage, SharedLink
 
 
 class ChunkSerializer(serializers.ModelSerializer):
@@ -19,6 +19,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     """Serializer for Document model."""
     chunks_count = serializers.ReadOnlyField()
     size_display = serializers.ReadOnlyField()
+    owner = serializers.CharField(source='user.username', read_only=True, default=None)
 
     class Meta:
         model = Document
@@ -26,6 +27,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             'id', 'filename', 'original_filename', 'file_type',
             'size', 'size_display', 'status', 'error_message',
             'chunks_count', 'uploaded_at', 'processed_at',
+            'owner', 'is_shared',
         ]
         read_only_fields = ['id', 'uploaded_at', 'processed_at']
 
@@ -69,11 +71,22 @@ class ChatResponseSerializer(serializers.Serializer):
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     """Serializer for ChatMessage model."""
+    owner = serializers.CharField(source='user.username', read_only=True, default=None)
 
     class Meta:
         model = ChatMessage
-        fields = ['id', 'role', 'content', 'sources', 'created_at']
+        fields = ['id', 'owner', 'role', 'content', 'sources', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class SharedLinkSerializer(serializers.ModelSerializer):
+    """Serializer for SharedLink model."""
+    owner = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = SharedLink
+        fields = ['id', 'token', 'owner', 'share_type', 'is_active', 'created_at', 'expires_at']
+        read_only_fields = ['id', 'token', 'created_at']
 
 
 class StatsSerializer(serializers.Serializer):

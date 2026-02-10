@@ -1,20 +1,23 @@
 {% extends "core/base.html" %}
 
-{% block title %}Chat - ROoP{% endblock %}
+{% block title %}Чат - ROoP{% endblock %}
 {% block nav_chat_active %}active{% endblock %}
 
 {% block content %}
 <div class="chat-container" x-data="chatApp()">
     <!-- Chat header -->
     <div class="chat-header">
-        <h1>AI Chat</h1>
+        <h1>Чат с ИИ</h1>
         <div class="chat-actions">
+            <button class="btn btn-sm btn-outline" onclick="shareChat()" title="Поделиться чатом (только чтение)">
+                &#128279; Поделиться
+            </button>
             <button class="btn btn-sm btn-outline"
                     hx-post="{% url 'core:htmx_clear_chat' %}"
                     hx-target="#chat-messages"
                     hx-swap="innerHTML"
-                    hx-confirm="Clear all chat history?">
-                Clear history
+                    hx-confirm="Очистить всю историю чата?">
+                Очистить историю
             </button>
         </div>
     </div>
@@ -28,18 +31,18 @@
             </div>
             <div class="message-body">
                 <div class="message-role">
-                    {% if msg.role == 'user' %}You{% else %}AI Assistant{% endif %}
+                    {% if msg.role == 'user' %}Вы{% else %}ИИ Ассистент{% endif %}
                 </div>
                 <div class="message-content">{{ msg.content|linebreaksbr }}</div>
                 {% if msg.sources %}
                 <div class="message-sources">
                     <details>
-                        <summary>Sources ({{ msg.sources|length }})</summary>
+                        <summary>Источники ({{ msg.sources|length }})</summary>
                         <ul>
                             {% for source in msg.sources %}
                             <li>
                                 <strong>{{ source.filename }}</strong>
-                                (chunk {{ source.chunk_index }}, relevance: {{ source.relevance }})
+                                (фрагмент {{ source.chunk_index }}, релевантность: {{ source.relevance }})
                                 <p class="source-preview">{{ source.preview }}</p>
                             </li>
                             {% endfor %}
@@ -53,8 +56,8 @@
         <div class="empty-chat">
             <div class="empty-icon">&#9670;</div>
             <h2>ROoP</h2>
-            <p>Upload documents and ask questions about their content.</p>
-            <p class="hint">Go to <a href="{% url 'core:docs' %}">Documents</a> to upload files first.</p>
+            <p>Загрузите документы и задавайте вопросы по их содержимому.</p>
+            <p class="hint">Перейдите в <a href="{% url 'core:docs' %}">Документы</a>, чтобы загрузить файлы.</p>
         </div>
         {% endfor %}
     </div>
@@ -70,7 +73,7 @@
             <div class="input-wrapper">
                 <textarea name="question"
                           id="chat-question"
-                          placeholder="Ask a question about your documents..."
+                          placeholder="Задайте вопрос по вашим документам..."
                           rows="1"
                           required
                           class="chat-input"
@@ -105,16 +108,10 @@ function chatApp() {
     }
 }
 
-/* ------------------------------------------------------------------
-   Chat loading animation:
-   1. On submit: instantly show the user's message + "thinking" bubble
-   2. On response: remove the thinking bubble (real response is appended)
-   ------------------------------------------------------------------ */
 (function() {
     var chatForm = document.getElementById('chat-form');
     if (!chatForm) return;
 
-    // Before HTMX sends the request
     chatForm.addEventListener('htmx:beforeRequest', function(e) {
         var input = document.getElementById('chat-question');
         var question = (input && input.value || '').trim();
@@ -123,60 +120,50 @@ function chatApp() {
         var messages = document.getElementById('chat-messages');
         if (!messages) return;
 
-        // Remove empty-chat placeholder if present
         var empty = messages.querySelector('.empty-chat');
         if (empty) empty.remove();
 
-        // 1. Show user message immediately
         var userBubble = document.createElement('div');
         userBubble.className = 'message message-user message-preview';
         userBubble.innerHTML =
             '<div class="message-avatar">&#9775;</div>' +
             '<div class="message-body">' +
-                '<div class="message-role">You</div>' +
+                '<div class="message-role">\u0412\u044b</div>' +
                 '<div class="message-content">' + escapeHtml(question) + '</div>' +
             '</div>';
         messages.appendChild(userBubble);
 
-        // 2. Show "thinking" animation
         var thinkBubble = document.createElement('div');
         thinkBubble.className = 'message message-assistant thinking-indicator';
         thinkBubble.id = 'thinking-bubble';
         thinkBubble.innerHTML =
             '<div class="message-avatar">&#9670;</div>' +
             '<div class="message-body">' +
-                '<div class="message-role">AI Assistant</div>' +
+                '<div class="message-role">\u0418\u0418 \u0410\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442</div>' +
                 '<div class="message-content thinking-content">' +
                     '<div class="thinking-dots">' +
                         '<span></span><span></span><span></span>' +
                     '</div>' +
-                    '<span class="thinking-text">Analyzing documents and generating response...</span>' +
+                    '<span class="thinking-text">\u0410\u043d\u0430\u043b\u0438\u0437 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432 \u0438 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u044f \u043e\u0442\u0432\u0435\u0442\u0430...</span>' +
                 '</div>' +
             '</div>';
         messages.appendChild(thinkBubble);
 
-        // 3. Disable input
         input.disabled = true;
         var btn = document.getElementById('send-btn');
         if (btn) btn.disabled = true;
 
         scrollToBottom();
-
-        // 4. Clear textarea (for visual feedback)
         input.value = '';
     });
 
-    // After HTMX receives the response
     chatForm.addEventListener('htmx:afterRequest', function(e) {
-        // Remove thinking bubble
         var bubble = document.getElementById('thinking-bubble');
         if (bubble) bubble.remove();
 
-        // Remove preview user message (server response includes the real one)
         var previews = document.querySelectorAll('.message-preview');
         previews.forEach(function(el) { el.remove(); });
 
-        // Re-enable input
         var input = document.getElementById('chat-question');
         if (input) {
             input.disabled = false;
@@ -196,11 +183,31 @@ function chatApp() {
     }
 })();
 
-// Auto-scroll on new messages
 document.addEventListener('htmx:afterSwap', function(event) {
     if (event.detail.target.id === 'chat-messages') {
         scrollToBottom();
     }
 });
+
+function shareChat() {
+    fetch('{% url "core:share_chat" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.url) {
+            navigator.clipboard.writeText(data.url).then(function() {
+                alert('\u0421\u0441\u044b\u043b\u043a\u0430 \u0441\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u0430!\n' + data.url);
+            }).catch(function() {
+                prompt('\u0421\u043a\u043e\u043f\u0438\u0440\u0443\u0439\u0442\u0435 \u0441\u0441\u044b\u043b\u043a\u0443:', data.url);
+            });
+        }
+    })
+    .catch(function(e) { alert('\u041e\u0448\u0438\u0431\u043a\u0430: ' + e); });
+}
 </script>
 {% endblock %}

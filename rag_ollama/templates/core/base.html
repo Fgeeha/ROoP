@@ -34,16 +34,33 @@
                 ROoP
             </a>
             <div class="nav-links">
+                {% if user.is_authenticated %}
                 <a href="{% url 'core:index' %}" class="nav-link {% block nav_chat_active %}{% endblock %}">
-                    Chat
+                    Чат
                 </a>
                 <a href="{% url 'core:docs' %}" class="nav-link {% block nav_docs_active %}{% endblock %}">
-                    Documents
+                    Документы
                 </a>
+                {% if user.is_staff %}
                 <a href="/admin/" class="nav-link" target="_blank">
-                    Admin
+                    Админка
                 </a>
-                <button onclick="toggleTheme()" class="theme-toggle" id="theme-toggle-btn" title="Toggle theme">
+                {% endif %}
+                <a href="{% url 'core:profile' %}" class="nav-link {% block nav_profile_active %}{% endblock %}" title="{{ user.username }}">
+                    &#9775; {{ user.username }}
+                </a>
+                <a href="{% url 'core:logout' %}" class="nav-link">
+                    Выход
+                </a>
+                {% else %}
+                <a href="{% url 'core:login' %}" class="nav-link">
+                    Вход
+                </a>
+                <a href="{% url 'core:register' %}" class="nav-link">
+                    Регистрация
+                </a>
+                {% endif %}
+                <button onclick="toggleTheme()" class="theme-toggle" id="theme-toggle-btn" title="Сменить тему">
                     <span id="theme-icon-light">&#9789;</span>
                     <span id="theme-icon-dark" style="display:none">&#9788;</span>
                 </button>
@@ -51,13 +68,15 @@
         </div>
     </nav>
 
-    <!-- Stats bar -->
+    <!-- Stats bar (only for authenticated users) -->
+    {% if user.is_authenticated %}
     <div class="stats-bar"
          hx-get="{% url 'core:htmx_stats' %}"
          hx-trigger="load, every 15s"
          hx-swap="innerHTML">
-        <div class="stats-loading">Loading stats...</div>
+        <div class="stats-loading">Загрузка статистики...</div>
     </div>
+    {% endif %}
 
     <!-- Main content -->
     <main class="main-content">

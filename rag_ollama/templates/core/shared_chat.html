@@ -1,0 +1,53 @@
+{% extends "core/base.html" %}
+
+{% block title %}Общий чат - ROoP{% endblock %}
+
+{% block content %}
+<div class="shared-container">
+    <div class="shared-header">
+        <div class="shared-badge">Только чтение</div>
+        <h1>Чат пользователя {{ owner.username }}</h1>
+        <p class="shared-meta">
+            Опубликовано {{ shared_link.created_at|date:"d.m.Y H:i" }}
+        </p>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+            {% if messages %}
+                {% for msg in messages %}
+                <div class="chat-message {{ msg.role }}">
+                    <div class="message-header">
+                        <strong>
+                            {% if msg.role == 'user' %}
+                            {{ owner.username }}
+                            {% else %}
+                            ИИ Ассистент
+                            {% endif %}
+                        </strong>
+                        <span class="message-time">{{ msg.created_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <div class="message-content">{{ msg.content|linebreaksbr }}</div>
+                    {% if msg.sources %}
+                    <div class="message-sources">
+                        <small>Источники:</small>
+                        {% for src in msg.sources %}
+                        <span class="source-tag">{{ src.filename }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-chat">
+                    <p>В этом чате нет сообщений.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="shared-notice">
+            Это общедоступный просмотр. Отправка сообщений недоступна.
+        </div>
+    </div>
+</div>
+{% endblock %}

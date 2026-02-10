@@ -197,6 +197,46 @@ SEARCH_K = int(os.getenv('SEARCH_K', '4'))
 # API key for external API access
 API_KEY = os.getenv('API_KEY', 'your-secret-api-key-change-me')
 
+# Authentication
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# Email / SMTP
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend'
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'ROoP <noreply@example.com>')
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))
+
+# TLS / SSL -- always determined by port number.
+# Port 465 = implicit SSL (EMAIL_USE_SSL=True).
+# Port 587 = STARTTLS (EMAIL_USE_TLS=True).
+# Port 25  = no encryption.
+# These are MUTUALLY EXCLUSIVE in Django. We auto-detect to prevent misconfiguration.
+# To override, set EMAIL_ENCRYPTION=ssl or EMAIL_ENCRYPTION=tls or EMAIL_ENCRYPTION=none.
+_email_encryption = os.getenv('EMAIL_ENCRYPTION', '').lower()
+if _email_encryption == 'ssl':
+    EMAIL_USE_SSL = True
+    EMAIL_USE_TLS = False
+elif _email_encryption == 'tls':
+    EMAIL_USE_SSL = False
+    EMAIL_USE_TLS = True
+elif _email_encryption == 'none':
+    EMAIL_USE_SSL = False
+    EMAIL_USE_TLS = False
+else:
+    # Auto-detect from port
+    EMAIL_USE_SSL = (EMAIL_PORT == 465)
+    EMAIL_USE_TLS = (EMAIL_PORT == 587)
+
+# For development/testing without real SMTP, use console backend:
+# EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 

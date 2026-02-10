@@ -1,0 +1,130 @@
+{% extends "core/base.html" %}
+
+{% block title %}Профиль - ROoP{% endblock %}
+{% block nav_profile_active %}active{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <h1>Личный кабинет</h1>
+
+    {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="profile-grid">
+        <!-- Profile info -->
+        <div class="profile-card">
+            <h2>Профиль</h2>
+
+            <div class="profile-status">
+                {% if profile.is_email_verified %}
+                <span class="badge badge-success">Email подтвержден</span>
+                {% else %}
+                <span class="badge badge-warning">Email не подтвержден</span>
+                <form method="post" style="display: inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="resend_verification">
+                    <button type="submit" class="btn btn-sm btn-outline">Отправить письмо повторно</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <form method="post" class="profile-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_profile">
+
+                <div class="form-group">
+                    <label>Имя пользователя</label>
+                    <input type="text" class="form-input" value="{{ user.username }}" disabled>
+                    <div class="form-hint">Имя пользователя нельзя изменить</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_first_name">{{ form.first_name.label }}</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}
+                    <div class="form-error">{{ form.first_name.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="id_last_name">{{ form.last_name.label }}</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}
+                    <div class="form-error">{{ form.last_name.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="id_email">{{ form.email.label }}</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}
+                    <div class="form-error">{{ form.email.errors.0 }}</div>
+                    {% endif %}
+                    <div class="form-hint">При смене email потребуется повторное подтверждение</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </form>
+        </div>
+
+        <!-- API key management -->
+        <div class="profile-card">
+            <h2>Доступ к API</h2>
+            <p class="profile-card-desc">
+                Используйте персональный API-ключ для доступа к REST API из внешних приложений.
+            </p>
+
+            <div class="api-key-section">
+                {% if profile.personal_api_key %}
+                <div class="form-group">
+                    <label>Ваш API-ключ</label>
+                    <div class="api-key-display">
+                        <code class="api-key-value" id="api-key-value">{{ profile.personal_api_key }}</code>
+                        <button type="button" class="btn btn-sm btn-outline"
+                                onclick="navigator.clipboard.writeText(document.getElementById('api-key-value').textContent); this.textContent='\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e!'; setTimeout(()=>this.textContent='\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c', 2000)">
+                            Копировать
+                        </button>
+                    </div>
+                </div>
+                <div class="form-hint">
+                    Используйте в API-запросах как заголовок: <code>Authorization: Api-Key YOUR_KEY</code>
+                </div>
+                {% else %}
+                <p>У вас пока нет API-ключа.</p>
+                {% endif %}
+
+                <form method="post" style="margin-top: 1rem">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="generate_api_key">
+                    <button type="submit" class="btn btn-outline"
+                            {% if profile.personal_api_key %}onclick="return confirm('\u042d\u0442\u043e \u0437\u0430\u043c\u0435\u043d\u0438\u0442 \u0442\u0435\u043a\u0443\u0449\u0438\u0439 API-\u043a\u043b\u044e\u0447. \u0412\u0441\u0435 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f, \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u044e\u0449\u0438\u0435 \u0441\u0442\u0430\u0440\u044b\u0439 \u043a\u043b\u044e\u0447, \u043f\u0435\u0440\u0435\u0441\u0442\u0430\u043d\u0443\u0442 \u0440\u0430\u0431\u043e\u0442\u0430\u0442\u044c. \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c?')"{% endif %}>
+                        {% if profile.personal_api_key %}Перегенерировать API-ключ{% else %}Сгенерировать API-ключ{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Account info -->
+        <div class="profile-card">
+            <h2>Информация об аккаунте</h2>
+            <div class="profile-info-list">
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Дата регистрации</span>
+                    <span>{{ profile.created_at|date:"d.m.Y H:i" }}</span>
+                </div>
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Последний вход</span>
+                    <span>{{ user.last_login|date:"d.m.Y H:i"|default:"Никогда" }}</span>
+                </div>
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Статус</span>
+                    <span>{% if user.is_active %}Активен{% else %}Неактивен{% endif %}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

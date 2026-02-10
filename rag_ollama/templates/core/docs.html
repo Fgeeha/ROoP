@@ -1,14 +1,14 @@
 {% extends "core/base.html" %}
 
-{% block title %}Documents - ROoP{% endblock %}
+{% block title %}Документы - ROoP{% endblock %}
 {% block nav_docs_active %}active{% endblock %}
 
 {% block content %}
 <div class="docs-container">
     <!-- Upload section -->
     <div class="upload-section" x-data="uploadApp()">
-        <h2>Upload Documents</h2>
-        <p class="upload-hint">Supported formats: PDF, TXT, MD (max 50MB)</p>
+        <h2>Загрузка документов</h2>
+        <p class="upload-hint">Поддерживаемые форматы: PDF, TXT, MD (макс. 50 МБ)</p>
 
         <!-- Drag & Drop zone -->
         <div class="drop-zone"
@@ -20,10 +20,10 @@
 
             <div class="drop-zone-content" x-show="!uploading">
                 <div class="drop-icon">&#128194;</div>
-                <p>Drag & drop files here</p>
-                <span class="drop-or">or</span>
+                <p>Перетащите файлы сюда</p>
+                <span class="drop-or">или</span>
                 <label class="btn btn-primary file-label">
-                    Browse files
+                    Выбрать файлы
                     <input type="file"
                            accept=".pdf,.txt,.md"
                            multiple
@@ -34,7 +34,7 @@
 
             <div class="upload-progress" x-show="uploading">
                 <div class="spinner"></div>
-                <p x-text="uploadStatus">Processing...</p>
+                <p x-text="uploadStatus">Обработка...</p>
             </div>
         </div>
 
@@ -45,8 +45,8 @@
     <!-- Documents list -->
     <div class="docs-list-section">
         <div class="docs-list-header">
-            <h2>Uploaded Documents</h2>
-            <span class="docs-count">{{ docs_count }} documents, {{ total_size }}</span>
+            <h2>Загруженные документы</h2>
+            <span class="docs-count">{{ docs_count }} документов, {{ total_size }}</span>
         </div>
 
         <div id="doc-list"
@@ -55,7 +55,7 @@
              hx-swap="innerHTML">
             <div class="loading-placeholder">
                 <div class="spinner"></div>
-                Loading documents...
+                Загрузка документов...
             </div>
         </div>
     </div>
@@ -64,11 +64,32 @@
 
 {% block extra_js %}
 <script>
+function shareDoc(docId) {
+    fetch('/share/doc/' + docId + '/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.url) {
+            navigator.clipboard.writeText(data.url).then(function() {
+                alert('\u0421\u0441\u044b\u043b\u043a\u0430 \u0441\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u0430!\n' + data.url);
+            }).catch(function() {
+                prompt('\u0421\u043a\u043e\u043f\u0438\u0440\u0443\u0439\u0442\u0435 \u0441\u0441\u044b\u043b\u043a\u0443:', data.url);
+            });
+        }
+    })
+    .catch(function(e) { alert('\u041e\u0448\u0438\u0431\u043a\u0430: ' + e); });
+}
+
 function uploadApp() {
     return {
         isDragging: false,
         uploading: false,
-        uploadStatus: 'Processing...',
+        uploadStatus: '\u041e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0430...',
 
         handleDrop(event) {
             this.isDragging = false;
@@ -89,25 +110,23 @@ function uploadApp() {
 
         async uploadSingleFile(file, current, total) {
             this.uploading = true;
-            this.uploadStatus = `Uploading ${current}/${total}: ${file.name}...`;
+            this.uploadStatus = `\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 ${current}/${total}: ${file.name}...`;
 
             const formData = new FormData();
             formData.append('file', file);
 
-            // Get CSRF token
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
                 || '{{ csrf_token }}';
 
-            // Animated status steps
             var self = this;
             var step = 0;
             var steps = [
-                'Uploading ' + file.name + '...',
-                'Extracting text from document...',
-                'Splitting into chunks...',
-                'Generating embeddings (this may take a while)...',
-                'Storing in vector database...',
-                'Almost done...',
+                '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 ' + file.name + '...',
+                '\u0418\u0437\u0432\u043b\u0435\u0447\u0435\u043d\u0438\u0435 \u0442\u0435\u043a\u0441\u0442\u0430 \u0438\u0437 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430...',
+                '\u0420\u0430\u0437\u0431\u0438\u0435\u043d\u0438\u0435 \u043d\u0430 \u0444\u0440\u0430\u0433\u043c\u0435\u043d\u0442\u044b...',
+                '\u0413\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u044f \u044d\u043c\u0431\u0435\u0434\u0434\u0438\u043d\u0433\u043e\u0432 (\u044d\u0442\u043e \u043c\u043e\u0436\u0435\u0442 \u0437\u0430\u043d\u044f\u0442\u044c \u0432\u0440\u0435\u043c\u044f)...',
+                '\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0435 \u0432 \u0432\u0435\u043a\u0442\u043e\u0440\u043d\u0443\u044e \u0431\u0430\u0437\u0443...',
+                '\u041f\u043e\u0447\u0442\u0438 \u0433\u043e\u0442\u043e\u0432\u043e...',
             ];
             var statusTimer = setInterval(function() {
                 step++;
@@ -130,18 +149,17 @@ function uploadApp() {
                 const html = await response.text();
                 document.getElementById('upload-results').innerHTML += html;
 
-                // Refresh document list
                 htmx.trigger('#doc-list', 'htmx:load');
                 htmx.ajax('GET', '{% url "core:htmx_doc_list" %}', '#doc-list');
 
             } catch (error) {
                 clearInterval(statusTimer);
                 document.getElementById('upload-results').innerHTML +=
-                    '<div class="alert alert-error">Error uploading ' + file.name + ': ' + error.message + '</div>';
+                    '<div class="alert alert-error">\u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 ' + file.name + ': ' + error.message + '</div>';
             }
 
             this.uploading = false;
-            this.uploadStatus = 'Processing...';
+            this.uploadStatus = '\u041e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0430...';
         }
     }
 }

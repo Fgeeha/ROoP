@@ -535,7 +535,14 @@ class RAGPipeline:
     # ChromaDB operations
     # -------------------------------------------------------------------------
 
-    def add_chunks_to_chroma(self, chunks: list[str], document_id: int, filename: str) -> list[str]:
+    def add_chunks_to_chroma(
+        self,
+        chunks: list[str],
+        document_id: int,
+        filename: str,
+        user_id: int | None = None,
+        is_shared: bool = False,
+    ) -> list[str]:
         """Add text chunks to ChromaDB with embeddings."""
         if not chunks:
             return []
@@ -555,6 +562,8 @@ class RAGPipeline:
                 'filename': filename,
                 'chunk_index': i,
                 'char_count': len(chunk),
+                'user_id': str(user_id) if user_id else '',
+                'is_shared': 'true' if is_shared else 'false',
             })
 
         # Add to ChromaDB in batches
@@ -583,8 +592,36 @@ class RAGPipeline:
         except Exception as e:
             logger.error(f"Error deleting from ChromaDB: {e}")
 
-    def search(self, query: str, k: int = None) -> list[dict]:
-        """Search ChromaDB for relevant chunks."""
+    def update_chroma_metadata_for_document(self, document_id: int, user_id: int | None, is_shared: bool):
+        """Update user_id and is_shared metadata for an existing document in ChromaDB."""
+        try:
+            results = self.collection.get(
+                where={"document_id": str(document_id)},
+            )
+            if not results or not results['ids']:
+                return 0
+
+            new_metadatas = []
+            for meta in results['metadatas']:
+                meta['user_id'] = str(user_id) if user_id else ''
+                meta['is_shared'] = 'true' if is_shared else 'false'
+                new_metadatas.append(meta)
+
+            self.collection.update(
+                ids=results['ids'],
+                metadatas=new_metadatas,
+            )
+            logger.info(
+                f"Updated ChromaDB metadata for document {document_id}: "
+                f"user_id={user_id}, is_shared={is_shared} ({len(results['ids'])} chunks)"
+            )
+            return len(results['ids'])
+        except Exception as e:
+            logger.error(f"Error updating ChromaDB metadata for document {document_id}: {e}")
+            return 0
+
+    def search(self, query: str, k: int = None, user_id: int | None = None) -> list[dict]:
+        """Search ChromaDB for relevant chunks, scoped to user + shared docs."""
         k = k or settings.SEARCH_K
 
         if self.collection.count() == 0:
@@ -593,10 +630,21 @@ class RAGPipeline:
 
         query_embedding = self.get_embedding(query)
 
+        # Build user-scoped filter
+        where_filter = None
+        if user_id:
+            where_filter = {
+                "$or": [
+                    {"user_id": str(user_id)},
+                    {"is_shared": "true"},
+                ],
+            }
+
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=min(k, self.collection.count()),
             include=['documents', 'metadatas', 'distances'],
+            where=where_filter,
         )
 
         search_results = []
@@ -651,6 +699,8 @@ class RAGPipeline:
                 chunks=chunks,
                 document_id=document.id,
                 filename=document.original_filename,
+                user_id=document.user_id,
+                is_shared=document.is_shared,
             )
 
             # Step 5: Create Chunk model instances
@@ -691,15 +741,15 @@ class RAGPipeline:
     # Chat / RAG query
     # -------------------------------------------------------------------------
 
-    def chat(self, question: str) -> dict:
+    def chat(self, question: str, user_id: int | None = None) -> dict:
         """
         RAG chat: search relevant context and generate answer with LLM.
         Returns dict with 'answer' and 'sources'.
         """
-        logger.info(f"Chat query: {question[:100]}")
+        logger.info(f"Chat query (user={user_id}): {question[:100]}")
 
-        # Search for relevant context
-        search_results = self.search(question)
+        # Search for relevant context (scoped to user)
+        search_results = self.search(question, user_id=user_id)
 
         if not search_results:
             answer = self._generate_no_context_response(question)

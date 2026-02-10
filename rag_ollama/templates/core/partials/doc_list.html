@@ -1,12 +1,12 @@
 {% if deleted %}
 <div class="alert alert-info" x-data x-init="setTimeout(() => $el.remove(), 3000)">
-    Document "{{ deleted }}" deleted.
+    Документ "{{ deleted }}" удален.
 </div>
 {% endif %}
 
 {% if error %}
 <div class="alert alert-error">
-    Error: {{ error }}
+    Ошибка: {{ error }}
 </div>
 {% endif %}
 
@@ -16,13 +16,14 @@
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Filename</th>
-                <th>Type</th>
-                <th>Size</th>
-                <th>Status</th>
-                <th>Chunks</th>
-                <th>Uploaded</th>
-                <th>Actions</th>
+                <th>Имя файла</th>
+                <th>Владелец</th>
+                <th>Тип</th>
+                <th>Размер</th>
+                <th>Статус</th>
+                <th>Фрагменты</th>
+                <th>Загружен</th>
+                <th>Действия</th>
             </tr>
         </thead>
         <tbody>
@@ -31,6 +32,10 @@
                 <td>{{ doc.id }}</td>
                 <td class="filename-cell" title="{{ doc.original_filename }}">
                     {{ doc.original_filename }}
+                </td>
+                <td>
+                    {% if doc.user %}{{ doc.user.username }}{% else %}система{% endif %}
+                    {% if doc.is_shared %}<span class="badge badge-shared" title="Общий">&#127760;</span>{% endif %}
                 </td>
                 <td>
                     <span class="badge badge-{{ doc.file_type }}">{{ doc.file_type|upper }}</span>
@@ -42,14 +47,21 @@
                 <td>{{ doc.chunks_count }}</td>
                 <td>{{ doc.uploaded_at|date:"d.m.Y H:i" }}</td>
                 <td>
+                    {% if doc.user == request.user %}
+                    <button class="btn btn-sm btn-outline"
+                            onclick="shareDoc({{ doc.id }})"
+                            title="Поделиться документом">
+                        &#128279;
+                    </button>
                     <button class="btn btn-sm btn-danger"
                             hx-delete="{% url 'core:htmx_doc_delete' doc.id %}"
                             hx-target="#doc-list"
                             hx-swap="innerHTML"
-                            hx-confirm="Delete '{{ doc.original_filename }}'?"
+                            hx-confirm="Удалить '{{ doc.original_filename }}'?"
                             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                        Delete
+                        Удалить
                     </button>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -59,7 +71,7 @@
 {% else %}
 <div class="empty-docs">
     <div class="empty-icon">&#128194;</div>
-    <p>No documents uploaded yet.</p>
-    <p class="hint">Upload PDF, TXT, or MD files to get started.</p>
+    <p>Документы еще не загружены.</p>
+    <p class="hint">Загрузите PDF, TXT или MD файлы для начала работы.</p>
 </div>
 {% endif %}
