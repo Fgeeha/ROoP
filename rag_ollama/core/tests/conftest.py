@@ -27,3 +27,13 @@ def mock_rag_pipeline():
     mock_pipeline = _create_mock_pipeline()
     with patch('core.rag_pipeline.RAGPipeline.get_instance', return_value=mock_pipeline):
         yield mock_pipeline
+
+
+@pytest.fixture(autouse=True)
+def _use_simple_static_storage(settings):
+    """Use default StaticFilesStorage in tests (no collectstatic / manifest needed)."""
+    settings.STORAGES = {
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
