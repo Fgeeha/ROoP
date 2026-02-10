@@ -141,11 +141,33 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8000',
 ]
 
-# CSRF
-CSRF_TRUSTED_ORIGINS = [
+# CSRF - build trusted origins from ALLOWED_HOSTS automatically.
+# For closed-circuit / corporate networks this is safe.
+_csrf_origins = set()
+for _host in ALLOWED_HOSTS:
+    if _host in ('*', '0.0.0.0'):
+        continue  # skip wildcards, handled below
+    _csrf_origins.add(f'http://{_host}')
+    _csrf_origins.add(f'http://{_host}:8000')
+    _csrf_origins.add(f'https://{_host}')
+
+# Also trust origins from CSRF_EXTRA_ORIGINS env var (comma-separated)
+for _origin in os.getenv('CSRF_EXTRA_ORIGINS', '').split(','):
+    _origin = _origin.strip()
+    if _origin:
+        _csrf_origins.add(_origin)
+
+CSRF_TRUSTED_ORIGINS = sorted(_csrf_origins) if _csrf_origins else [
+    'http://localhost',
     'http://localhost:8000',
+    'http://127.0.0.1',
     'http://127.0.0.1:8000',
 ]
+
+# If ALLOWED_HOSTS contains '*', we're on a local/corporate network.
+# Disable Origin check so any host is trusted.
+if '*' in ALLOWED_HOSTS:
+    CSRF_TRUSTED_ORIGINS = ['http://*', 'https://*']
 
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
