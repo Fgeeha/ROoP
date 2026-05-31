@@ -204,7 +204,15 @@ CHROMA_COLLECTION = os.getenv('CHROMA_COLLECTION', 'rag_documents')
 # RAG settings
 CHUNK_SIZE = int(os.getenv('CHUNK_SIZE', '1000'))
 CHUNK_OVERLAP = int(os.getenv('CHUNK_OVERLAP', '200'))
-SEARCH_K = int(os.getenv('SEARCH_K', '4'))
+# SEARCH_K: number of chunks retrieved before relevance filtering.
+# nomic-embed-text chunks at ~1000 chars; Mistral context window is 32k tokens.
+# 6-8 chunks gives ~6-8k chars of context -- well within the window.
+SEARCH_K = int(os.getenv('SEARCH_K', '6'))
+# SEARCH_RELEVANCE_THRESHOLD: cosine similarity floor [0.0, 1.0].
+# ChromaDB returns cosine DISTANCE; relevance = 1 - distance.
+# Chunks below this threshold are dropped before sending context to the LLM.
+# 0.0 = no filtering; 0.20 = conservative (drops clearly irrelevant chunks).
+SEARCH_RELEVANCE_THRESHOLD = float(os.getenv('SEARCH_RELEVANCE_THRESHOLD', '0.20'))
 
 # API key for external API access
 API_KEY = os.getenv('API_KEY', 'your-secret-api-key-change-me')

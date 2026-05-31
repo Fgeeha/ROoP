@@ -1,0 +1,125 @@
+[2026-05-31 10:27:19,753] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:28:02,293] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:30:00,505] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:34:15,509] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:34:50,430] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:42:34,988] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:47:59,533] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:47:59,556] INFO core.indexing indexing: Background indexing started for document 99 (thread: indexing-doc-99)
+[2026-05-31 10:47:59,557] INFO core.indexing indexing: Background indexing started for document 1 (thread: indexing-doc-1)
+[2026-05-31 10:47:59,558] INFO core.indexing indexing: Background indexing started for document 77 (thread: indexing-doc-77)
+[2026-05-31 10:49:02,283] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:49:02,306] INFO core.indexing indexing: Background indexing started for document 99 (thread: indexing-doc-99)
+[2026-05-31 10:49:02,307] INFO core.indexing indexing: Background indexing started for document 1 (thread: indexing-doc-1)
+[2026-05-31 10:49:02,309] INFO core.indexing indexing: Background indexing started for document 77 (thread: indexing-doc-77)
+[2026-05-31 10:50:01,648] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:50:01,671] INFO core.indexing indexing: Background indexing started for document 99 (thread: indexing-doc-99)
+[2026-05-31 10:50:01,672] INFO core.indexing indexing: Background indexing started for document 1 (thread: indexing-doc-1)
+[2026-05-31 10:50:01,673] INFO core.indexing indexing: Background indexing started for document 77 (thread: indexing-doc-77)
+[2026-05-31 10:50:01,677] ERROR core.indexing indexing: Background indexing failed for document 42: embed fail
+[2026-05-31 10:50:01,679] ERROR core.indexing indexing: Background indexing failed for document 42: boom
+[2026-05-31 10:50:01,680] ERROR core.indexing indexing: Background indexing: document 999 not found
+[2026-05-31 10:50:01,682] ERROR core.indexing indexing: Background indexing failed for document 42: oops
+[2026-05-31 10:50:43,938] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 10:50:43,966] INFO core.indexing indexing: Background indexing started for document 99 (thread: indexing-doc-99)
+[2026-05-31 10:50:43,967] INFO core.indexing indexing: Background indexing started for document 1 (thread: indexing-doc-1)
+[2026-05-31 10:50:43,968] INFO core.indexing indexing: Background indexing started for document 77 (thread: indexing-doc-77)
+[2026-05-31 10:50:43,973] ERROR core.indexing indexing: Background indexing failed for document 42: embed fail
+[2026-05-31 10:50:43,975] ERROR core.indexing indexing: Background indexing failed for document 42: boom
+[2026-05-31 10:50:43,976] ERROR core.indexing indexing: Background indexing: document 999 not found
+[2026-05-31 10:50:43,978] ERROR core.indexing indexing: Background indexing failed for document 42: oops
+[2026-05-31 11:11:28,808] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 11:11:28,835] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=7, threshold=0.00)
+[2026-05-31 11:11:28,836] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=3, threshold=0.00)
+[2026-05-31 11:11:28,837] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=10, threshold=0.00)
+[2026-05-31 11:11:28,839] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 2 results (k=6, threshold=0.00)
+[2026-05-31 11:11:28,840] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.00)
+[2026-05-31 11:11:28,841] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.00)
+[2026-05-31 11:11:28,842] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/2 chunks
+[2026-05-31 11:11:28,842] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:11:28,844] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:11:28,845] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/2 chunks
+[2026-05-31 11:11:28,845] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:11:28,848] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 3 results (k=6, threshold=0.00)
+[2026-05-31 11:11:28,849] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 3 results (k=6, threshold=0.20)
+[2026-05-31 11:11:28,895] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 2/2 chunks
+[2026-05-31 11:11:28,895] INFO core.rag_pipeline rag_pipeline: Search 'completely unrelated query...' returned 0 results (k=6, threshold=0.20)
+[2026-05-31 11:11:28,897] WARNING core.rag_pipeline rag_pipeline: ChromaDB collection is empty
+[2026-05-31 11:11:28,898] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): specialized question
+[2026-05-31 11:11:28,898] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/1 chunks
+[2026-05-31 11:11:28,898] INFO core.rag_pipeline rag_pipeline: Search 'specialized question...' returned 0 results (k=6, threshold=0.20)
+[2026-05-31 11:11:28,898] INFO core.rag_pipeline rag_pipeline: No relevant context after threshold filtering (threshold=0.20)
+[2026-05-31 11:11:28,899] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): some question
+[2026-05-31 11:11:28,899] WARNING core.rag_pipeline rag_pipeline: ChromaDB collection is empty
+[2026-05-31 11:11:28,900] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): question
+[2026-05-31 11:11:28,901] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.35: dropped 1/1 chunks
+[2026-05-31 11:11:28,901] INFO core.rag_pipeline rag_pipeline: Search 'question...' returned 0 results (k=6, threshold=0.35)
+[2026-05-31 11:11:28,901] INFO core.rag_pipeline rag_pipeline: No relevant context after threshold filtering (threshold=0.35)
+[2026-05-31 11:11:43,697] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 11:11:48,040] INFO core.indexing indexing: Background indexing started for document 99 (thread: indexing-doc-99)
+[2026-05-31 11:11:48,041] INFO core.indexing indexing: Background indexing started for document 1 (thread: indexing-doc-1)
+[2026-05-31 11:11:48,043] INFO core.indexing indexing: Background indexing started for document 77 (thread: indexing-doc-77)
+[2026-05-31 11:11:48,047] ERROR core.indexing indexing: Background indexing failed for document 42: embed fail
+[2026-05-31 11:11:48,049] ERROR core.indexing indexing: Background indexing failed for document 42: boom
+[2026-05-31 11:11:48,050] ERROR core.indexing indexing: Background indexing: document 999 not found
+[2026-05-31 11:11:48,052] ERROR core.indexing indexing: Background indexing failed for document 42: oops
+[2026-05-31 11:11:48,056] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=7, threshold=0.00)
+[2026-05-31 11:11:48,057] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=3, threshold=0.00)
+[2026-05-31 11:11:48,058] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=10, threshold=0.00)
+[2026-05-31 11:11:48,059] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 2 results (k=6, threshold=0.00)
+[2026-05-31 11:11:48,060] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.00)
+[2026-05-31 11:11:48,061] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.00)
+[2026-05-31 11:11:48,062] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/2 chunks
+[2026-05-31 11:11:48,062] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:11:48,063] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:11:48,065] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/2 chunks
+[2026-05-31 11:11:48,065] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:11:48,067] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 3 results (k=6, threshold=0.00)
+[2026-05-31 11:11:48,068] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 3 results (k=6, threshold=0.20)
+[2026-05-31 11:11:48,115] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 2/2 chunks
+[2026-05-31 11:11:48,115] INFO core.rag_pipeline rag_pipeline: Search 'completely unrelated query...' returned 0 results (k=6, threshold=0.20)
+[2026-05-31 11:11:48,116] WARNING core.rag_pipeline rag_pipeline: ChromaDB collection is empty
+[2026-05-31 11:11:48,118] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): specialized question
+[2026-05-31 11:11:48,118] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/1 chunks
+[2026-05-31 11:11:48,118] INFO core.rag_pipeline rag_pipeline: Search 'specialized question...' returned 0 results (k=6, threshold=0.20)
+[2026-05-31 11:11:48,118] INFO core.rag_pipeline rag_pipeline: No relevant context after threshold filtering (threshold=0.20)
+[2026-05-31 11:11:48,119] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): some question
+[2026-05-31 11:11:48,119] WARNING core.rag_pipeline rag_pipeline: ChromaDB collection is empty
+[2026-05-31 11:11:48,120] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): question
+[2026-05-31 11:11:48,120] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.35: dropped 1/1 chunks
+[2026-05-31 11:11:48,120] INFO core.rag_pipeline rag_pipeline: Search 'question...' returned 0 results (k=6, threshold=0.35)
+[2026-05-31 11:11:48,120] INFO core.rag_pipeline rag_pipeline: No relevant context after threshold filtering (threshold=0.35)
+[2026-05-31 11:12:03,681] WARNING core.apps apps: RAG Pipeline initialization deferred: [Errno 13] Permission denied: '/app'
+[2026-05-31 11:12:03,803] INFO core.indexing indexing: Background indexing started for document 99 (thread: indexing-doc-99)
+[2026-05-31 11:12:03,804] INFO core.indexing indexing: Background indexing started for document 1 (thread: indexing-doc-1)
+[2026-05-31 11:12:03,805] INFO core.indexing indexing: Background indexing started for document 77 (thread: indexing-doc-77)
+[2026-05-31 11:12:03,811] ERROR core.indexing indexing: Background indexing failed for document 42: embed fail
+[2026-05-31 11:12:03,812] ERROR core.indexing indexing: Background indexing failed for document 42: boom
+[2026-05-31 11:12:03,814] ERROR core.indexing indexing: Background indexing: document 999 not found
+[2026-05-31 11:12:03,816] ERROR core.indexing indexing: Background indexing failed for document 42: oops
+[2026-05-31 11:12:03,834] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=7, threshold=0.00)
+[2026-05-31 11:12:03,835] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=3, threshold=0.00)
+[2026-05-31 11:12:03,836] INFO core.rag_pipeline rag_pipeline: Search 'test query...' returned 0 results (k=10, threshold=0.00)
+[2026-05-31 11:12:03,837] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 2 results (k=6, threshold=0.00)
+[2026-05-31 11:12:03,839] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.00)
+[2026-05-31 11:12:03,840] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.00)
+[2026-05-31 11:12:03,841] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/2 chunks
+[2026-05-31 11:12:03,841] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:12:03,842] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:12:03,844] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/2 chunks
+[2026-05-31 11:12:03,844] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 1 results (k=6, threshold=0.20)
+[2026-05-31 11:12:03,845] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 3 results (k=6, threshold=0.00)
+[2026-05-31 11:12:03,846] INFO core.rag_pipeline rag_pipeline: Search 'query...' returned 3 results (k=6, threshold=0.20)
+[2026-05-31 11:12:03,847] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 2/2 chunks
+[2026-05-31 11:12:03,847] INFO core.rag_pipeline rag_pipeline: Search 'completely unrelated query...' returned 0 results (k=6, threshold=0.20)
+[2026-05-31 11:12:03,848] WARNING core.rag_pipeline rag_pipeline: ChromaDB collection is empty
+[2026-05-31 11:12:03,850] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): specialized question
+[2026-05-31 11:12:03,850] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.20: dropped 1/1 chunks
+[2026-05-31 11:12:03,850] INFO core.rag_pipeline rag_pipeline: Search 'specialized question...' returned 0 results (k=6, threshold=0.20)
+[2026-05-31 11:12:03,850] INFO core.rag_pipeline rag_pipeline: No relevant context after threshold filtering (threshold=0.20)
+[2026-05-31 11:12:03,851] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): some question
+[2026-05-31 11:12:03,851] WARNING core.rag_pipeline rag_pipeline: ChromaDB collection is empty
+[2026-05-31 11:12:03,852] INFO core.rag_pipeline rag_pipeline: Chat query (user=None): question
+[2026-05-31 11:12:03,852] INFO core.rag_pipeline rag_pipeline: Relevance threshold 0.35: dropped 1/1 chunks
+[2026-05-31 11:12:03,852] INFO core.rag_pipeline rag_pipeline: Search 'question...' returned 0 results (k=6, threshold=0.35)
+[2026-05-31 11:12:03,852] INFO core.rag_pipeline rag_pipeline: No relevant context after threshold filtering (threshold=0.35)

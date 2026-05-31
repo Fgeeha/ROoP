@@ -680,8 +680,14 @@ class RAGPipeline:
             return 0
 
     def search(self, query: str, k: int = None, user_id: int | None = None) -> list[dict]:
-        """Search ChromaDB for relevant chunks, scoped to user + shared docs."""
+        """Search ChromaDB for relevant chunks, scoped to user + shared docs.
+
+        ChromaDB with hnsw:space=cosine returns cosine DISTANCE (0 = identical,
+        1 = orthogonal), not similarity.  We convert: relevance = 1 - distance,
+        then drop chunks below settings.SEARCH_RELEVANCE_THRESHOLD.
+        """
         k = k or settings.SEARCH_K
+        threshold = settings.SEARCH_RELEVANCE_THRESHOLD
 
         if self.collection.count() == 0:
             logger.warning('ChromaDB collection is empty')
@@ -725,7 +731,28 @@ class RAGPipeline:
                     }
                 )
 
-        logger.info(f"Search for '{query[:50]}...' returned {len(search_results)} results")
+        # Apply relevance threshold.
+        # relevance = 1 - distance, so higher is better.
+        # Keep only chunks with relevance >= threshold.
+        if threshold > 0 and search_results:
+            before = len(search_results)
+            search_results = [r for r in search_results if r['relevance'] >= threshold]
+            dropped = before - len(search_results)
+            if dropped:
+                logger.info(
+                    'Relevance threshold %.2f: dropped %d/%d chunks',
+                    threshold,
+                    dropped,
+                    before,
+                )
+
+        logger.info(
+            "Search '%s...' returned %d results (k=%d, threshold=%.2f)",
+            query[:50],
+            len(search_results),
+            k,
+            threshold,
+        )
         return search_results
 
     # -------------------------------------------------------------------------
@@ -815,7 +842,19 @@ class RAGPipeline:
         search_results = self.search(question, user_id=user_id)
 
         if not search_results:
-            answer = self._generate_no_context_response(question)
+            if self.collection.count() == 0:
+                # No documents uploaded yet — ask LLM to explain
+                answer = self._generate_no_context_response(question)
+            else:
+                # Documents exist but no chunk passed the relevance threshold
+                threshold = settings.SEARCH_RELEVANCE_THRESHOLD
+                logger.info('No relevant context after threshold filtering (threshold=%.2f)', threshold)
+                answer = (
+                    'Релевантного контекста не найдено. '
+                    'Загруженные документы не содержат информации по данному запросу '
+                    f'(порог схожести: {threshold:.2f}). '
+                    'Попробуйте переформулировать вопрос.'
+                )
             return {
                 'answer': answer,
                 'sources': [],
