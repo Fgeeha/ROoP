@@ -9,6 +9,7 @@ from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 
+from ..indexing import start_indexing_async
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
 from .helpers import format_size, user_docs_q, validate_and_save_upload
@@ -48,19 +49,15 @@ def htmx_chat_send(request):
         return render(
             request,
             'core/partials/chat_error.html',
-            {
-                'error': 'Введите вопрос',
-            },
+            {'error': 'Введите вопрос'},
         )
 
-    # Save user message
     ChatMessage.objects.create(user=request.user, role='user', content=question)
 
     try:
         pipeline = RAGPipeline.get_instance()
         result = pipeline.chat(question, user_id=request.user.id)
 
-        # Save assistant message
         ChatMessage.objects.create(
             user=request.user,
             role='assistant',
@@ -78,18 +75,22 @@ def htmx_chat_send(request):
             },
         )
     except Exception as e:
-        logger.error(f'Chat error: {e}')
+        logger.error('Chat error: %s', e)
         return render(
             request,
             'core/partials/chat_error.html',
-            {
-                'error': f'Ошибка: {str(e)}',
-            },
+            {'error': f'Ошибка: {e}'},
         )
 
 
 def htmx_upload(request):
-    """Handle file upload via HTMX."""
+    """
+    Handle file upload via HTMX.
+
+    Validates and saves the file synchronously, then hands off indexing
+    to a background thread.  Returns immediately so the browser is not
+    blocked by the (potentially slow) embedding + ChromaDB write.
+    """
     if request.method != 'POST':
         return JsonResponse({'error': 'Метод не разрешен'}, status=405)
 
@@ -103,54 +104,50 @@ def htmx_upload(request):
 
     try:
         file_path, ext, unique_name = validate_and_save_upload(uploaded_file)
-
-        # Create document record (owned by current user)
-        document = Document.objects.create(
-            user=request.user,
-            filename=unique_name,
-            original_filename=uploaded_file.name,
-            file_path=file_path,
-            file_type=ext,
-            size=uploaded_file.size,
-            status='pending',
-        )
-
-        # Process document synchronously
-        pipeline = RAGPipeline.get_instance()
-        chunks_count = pipeline.process_document(document)
-
-        return render(
-            request,
-            'core/partials/upload_result.html',
-            {
-                'success': True,
-                'document': document,
-                'chunks_count': chunks_count,
-            },
-        )
-
     except Exception as e:
-        logger.error(f'Upload error: {e}')
+        logger.error('Upload validation error: %s', e)
         return render(
             request,
             'core/partials/upload_result.html',
-            {
-                'success': False,
-                'error': str(e),
-            },
+            {'success': False, 'error': str(e)},
         )
+
+    document = Document.objects.create(
+        user=request.user,
+        filename=unique_name,
+        original_filename=uploaded_file.name,
+        file_path=file_path,
+        file_type=ext,
+        size=uploaded_file.size,
+        status=Document.Status.PENDING,
+    )
+
+    start_indexing_async(document.id)
+
+    return render(
+        request,
+        'core/partials/upload_result.html',
+        {'queued': True, 'document': document},
+    )
+
+
+def htmx_doc_status(request, doc_id):
+    """
+    Return a small status partial for a single document.
+    Used by HTMX polling after async upload.
+    """
+    document = get_object_or_404(Document, id=doc_id)
+
+    if document.user != request.user and not request.user.is_staff:
+        return JsonResponse({'error': 'Доступ запрещен'}, status=403)
+
+    return render(request, 'core/partials/doc_status.html', {'document': document})
 
 
 def htmx_doc_list(request):
     """Return document list partial for HTMX."""
     documents = Document.objects.filter(user_docs_q(request.user))
-    return render(
-        request,
-        'core/partials/doc_list.html',
-        {
-            'documents': documents,
-        },
-    )
+    return render(request, 'core/partials/doc_list.html', {'documents': documents})
 
 
 def htmx_doc_delete(request, doc_id):
@@ -160,16 +157,13 @@ def htmx_doc_delete(request, doc_id):
 
     document = get_object_or_404(Document, id=doc_id)
 
-    # Only the owner (or admin) can delete
     if document.user != request.user and not request.user.is_staff:
         return JsonResponse({'error': 'Доступ запрещен'}, status=403)
 
     try:
-        # Delete from ChromaDB
         pipeline = RAGPipeline.get_instance()
         pipeline.delete_document_from_chroma(document.id)
 
-        # Delete file from disk
         if os.path.exists(document.file_path):
             os.remove(document.file_path)
 
@@ -180,44 +174,26 @@ def htmx_doc_delete(request, doc_id):
         return render(
             request,
             'core/partials/doc_list.html',
-            {
-                'documents': documents,
-                'deleted': filename,
-            },
+            {'documents': documents, 'deleted': filename},
         )
 
     except Exception as e:
-        logger.error(f'Delete error: {e}')
+        logger.error('Delete error: %s', e)
         return render(
             request,
             'core/partials/doc_list.html',
-            {
-                'documents': Document.objects.filter(user_docs_q(request.user)),
-                'error': str(e),
-            },
+            {'documents': Document.objects.filter(user_docs_q(request.user)), 'error': str(e)},
         )
 
 
 def htmx_chat_history(request):
     """Return chat history partial."""
     messages = ChatMessage.objects.filter(user=request.user).order_by('created_at')[:100]
-    return render(
-        request,
-        'core/partials/chat_history.html',
-        {
-            'messages': messages,
-        },
-    )
+    return render(request, 'core/partials/chat_history.html', {'messages': messages})
 
 
 def htmx_clear_chat(request):
     """Clear chat history via HTMX."""
     if request.method == 'POST':
         ChatMessage.objects.filter(user=request.user).delete()
-    return render(
-        request,
-        'core/partials/chat_history.html',
-        {
-            'messages': [],
-        },
-    )
+    return render(request, 'core/partials/chat_history.html', {'messages': []})

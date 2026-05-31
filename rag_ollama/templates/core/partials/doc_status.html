@@ -1,0 +1,19 @@
+{% if document.status == 'pending' or document.status == 'processing' %}
+<div id="doc-status-{{ document.id }}"
+     hx-get="{% url 'core:htmx_doc_status' document.id %}"
+     hx-trigger="every 2s"
+     hx-target="this"
+     hx-swap="outerHTML">
+    <span class="status-badge status-processing">&#9203; Индексируется&hellip;</span>
+</div>
+{% elif document.status == 'completed' %}
+<div id="doc-status-{{ document.id }}">
+    <span class="status-badge status-completed">&#10003; Готово &mdash; {{ document.chunks_count }} фрагм.</span>
+</div>
+{% else %}
+<div id="doc-status-{{ document.id }}">
+    <span class="status-badge status-error" title="{{ document.error_message }}">
+        &#10007; Ошибка индексации
+    </span>
+</div>
+{% endif %}

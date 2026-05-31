@@ -39,6 +39,7 @@ urlpatterns = [
     path('htmx/upload/', login_required(views.htmx_upload), name='htmx_upload'),
     path('htmx/docs/', login_required(views.htmx_doc_list), name='htmx_doc_list'),
     path('htmx/docs/<int:doc_id>/delete/', login_required(views.htmx_doc_delete), name='htmx_doc_delete'),
+    path('htmx/docs/<int:doc_id>/status/', login_required(views.htmx_doc_status), name='htmx_doc_status'),
     # =========================================================================
     # Sharing (create requires login, view is public)
     # =========================================================================

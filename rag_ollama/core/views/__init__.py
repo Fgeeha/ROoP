@@ -24,6 +24,7 @@ from .htmx import (
     htmx_clear_chat,
     htmx_doc_delete,
     htmx_doc_list,
+    htmx_doc_status,
     htmx_stats,
     htmx_upload,
 )
@@ -44,6 +45,7 @@ __all__ = [
     'htmx_upload',
     'htmx_doc_list',
     'htmx_doc_delete',
+    'htmx_doc_status',
     # Sharing
     'create_share_chat',
     'create_share_document',

@@ -17,6 +17,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from ..indexing import start_indexing_async
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
 from ..serializers import (
@@ -49,7 +50,6 @@ def api_upload(request):
     except FileValidationError as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Create document record (owned by current user)
     document = Document.objects.create(
         user=request.user,
         filename=unique_name,
@@ -57,37 +57,21 @@ def api_upload(request):
         file_path=file_path,
         file_type=ext,
         size=uploaded_file.size,
-        status='pending',
+        status=Document.Status.PENDING,
     )
 
-    try:
-        # Process document synchronously
-        pipeline = RAGPipeline.get_instance()
-        chunks_count = pipeline.process_document(document)
+    start_indexing_async(document.id)
 
-        document.refresh_from_db()
-        return Response(
-            {
-                'id': document.id,
-                'filename': document.original_filename,
-                'chunks': chunks_count,
-                'status': document.status,
-                'size': document.size_display,
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-    except Exception as e:
-        document.refresh_from_db()
-        return Response(
-            {
-                'id': document.id,
-                'filename': document.original_filename,
-                'status': document.status,
-                'error': str(e),
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+    return Response(
+        {
+            'id': document.id,
+            'filename': document.original_filename,
+            'status': document.status,
+            'size': document.size_display,
+            'message': 'Document queued for indexing',
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
 
 
 @api_view(['POST'])

@@ -1,4 +1,16 @@
-{% if success %}
+{% if queued %}
+<div class="alert alert-info">
+    <strong>{{ document.original_filename }}</strong> загружен, идёт индексация&hellip;
+    <div id="doc-status-{{ document.id }}"
+         hx-get="{% url 'core:htmx_doc_status' document.id %}"
+         hx-trigger="every 2s"
+         hx-target="this"
+         hx-swap="outerHTML"
+         style="margin-top:6px">
+        <span class="status-badge status-processing">&#9203; Индексируется&hellip;</span>
+    </div>
+</div>
+{% elif success %}
 <div class="alert alert-success">
     <strong>{{ document.original_filename }}</strong> успешно загружен.
     Обработано фрагментов: {{ chunks_count }}.
