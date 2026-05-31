@@ -4,9 +4,7 @@ REST API views (DRF).
 
 import logging
 import os
-import uuid
 
-from django.conf import settings
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -28,7 +26,7 @@ from ..serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
 )
-from .helpers import format_size, user_docs_q
+from .helpers import FileValidationError, format_size, user_docs_q, validate_and_save_upload
 
 logger = logging.getLogger('core')
 
@@ -45,17 +43,11 @@ def api_upload(request):
     serializer.is_valid(raise_exception=True)
 
     uploaded_file = serializer.validated_data['file']
-    ext = uploaded_file.name.rsplit('.', 1)[-1].lower()
 
-    # Save file to disk
-    unique_name = f'{uuid.uuid4().hex[:12]}_{uploaded_file.name}'
-    upload_dir = os.path.join(settings.MEDIA_ROOT, 'documents')
-    os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, unique_name)
-
-    with open(file_path, 'wb+') as destination:
-        for chunk in uploaded_file.chunks():
-            destination.write(chunk)
+    try:
+        file_path, ext, unique_name = validate_and_save_upload(uploaded_file)
+    except FileValidationError as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     # Create document record (owned by current user)
     document = Document.objects.create(

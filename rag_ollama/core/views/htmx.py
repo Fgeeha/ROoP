@@ -4,16 +4,14 @@ HTMX partial views (stats, chat send, upload, doc list, etc.).
 
 import logging
 import os
-import uuid
 
-from django.conf import settings
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
-from .helpers import format_size, user_docs_q
+from .helpers import format_size, user_docs_q, validate_and_save_upload
 
 logger = logging.getLogger('core')
 
@@ -100,34 +98,11 @@ def htmx_upload(request):
         return render(
             request,
             'core/partials/upload_result.html',
-            {
-                'success': False,
-                'error': 'Файл не выбран',
-            },
-        )
-
-    # Validate file type
-    ext = uploaded_file.name.rsplit('.', 1)[-1].lower() if '.' in uploaded_file.name else ''
-    if ext not in ('pdf', 'txt', 'md', 'docx', 'doc'):
-        return render(
-            request,
-            'core/partials/upload_result.html',
-            {
-                'success': False,
-                'error': 'Неподдерживаемый формат. Допустимые: PDF, TXT, MD, DOCX, DOC',
-            },
+            {'success': False, 'error': 'Файл не выбран'},
         )
 
     try:
-        # Save file
-        unique_name = f'{uuid.uuid4().hex[:12]}_{uploaded_file.name}'
-        upload_dir = os.path.join(settings.MEDIA_ROOT, 'documents')
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, unique_name)
-
-        with open(file_path, 'wb+') as destination:
-            for chunk in uploaded_file.chunks():
-                destination.write(chunk)
+        file_path, ext, unique_name = validate_and_save_upload(uploaded_file)
 
         # Create document record (owned by current user)
         document = Document.objects.create(
