@@ -7,7 +7,6 @@ Supports two LLM backends:
 
 import hashlib
 import logging
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +15,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.rag.backends import OllamaBackend, OpenWebUIBackend, create_llm_backend  # noqa: F401
+from core.rag.chunker import chunk_text as _chunk_text
 from core.rag.extractor import extract_text as _extract_text
 
 logger = logging.getLogger(__name__)
@@ -89,167 +89,12 @@ class RAGPipeline:
         return _extract_text(file_path, file_type)
 
     # -------------------------------------------------------------------------
-    # Chunking
+    # Chunking — delegated to core.rag.chunker
     # -------------------------------------------------------------------------
 
-    # Heading patterns: lines that look like section titles in Russian technical docs.
-    # Examples: "Социальная защита", "Интеграционный модуль", "Расписание"
-    _HEADING_RE = re.compile(
-        r'^(?:'
-        r'(?:Модуль|Раздел|Глава|Часть|Блок)\s+.+'  # "Модуль ..."
-        r'|[А-ЯЁ][а-яёА-ЯЁ\s\-]{2,60}'  # Capitalised short line (heading)
-        r')$'
-    )
-
     def chunk_text(self, text: str) -> list[str]:
-        """
-        Split text into chunks, respecting section boundaries.
-
-        Strategy:
-        1. Split the document into sections by headings.
-        2. If a section fits into chunk_size -- keep it as one chunk.
-        3. If a section is too long -- split by paragraphs with overlap.
-        4. If a paragraph is still too long -- split by sentences with overlap.
-        """
-        chunk_size = settings.CHUNK_SIZE
-        chunk_overlap = settings.CHUNK_OVERLAP
-
-        text = re.sub(r'\n{3,}', '\n\n', text).strip()
-        if not text:
-            return []
-
-        if len(text) <= chunk_size:
-            return [text]
-
-        # Step 1: Split into sections by headings
-        sections = self._split_by_headings(text)
-
-        # Step 2: Build chunks from sections
-        chunks = []
-        for section in sections:
-            section = section.strip()
-            if not section:
-                continue
-
-            if len(section) <= chunk_size:
-                chunks.append(section)
-            else:
-                # Section too large -- split by paragraphs with overlap
-                sub_chunks = self._split_by_paragraphs(section, chunk_size, chunk_overlap)
-                chunks.extend(sub_chunks)
-
-        # Filter tiny chunks (< 50 chars are noise)
-        chunks = [c for c in chunks if len(c.strip()) > 50]
-
-        logger.info(f'Text chunked: {len(text)} chars -> {len(chunks)} chunks')
-        return chunks
-
-    def _split_by_headings(self, text: str) -> list[str]:
-        """
-        Split text into sections at heading boundaries.
-        A heading is a short line (<= 80 chars) that either:
-        - Matches common heading patterns, or
-        - Is followed by a numbered list ("1. ...")
-        """
-        lines = text.split('\n')
-        sections: list[str] = []
-        current_lines: list[str] = []
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            is_heading = False
-
-            if stripped and len(stripped) <= 80:
-                # Check if it looks like a heading
-                if self._HEADING_RE.match(stripped):
-                    is_heading = True
-                # Also treat as heading if next non-empty line starts with "1."
-                elif stripped and not stripped[0].isdigit():
-                    for j in range(i + 1, min(i + 3, len(lines))):
-                        next_stripped = lines[j].strip()
-                        if next_stripped:
-                            if re.match(r'^1[\.\)]\s', next_stripped):
-                                is_heading = True
-                            break
-
-            if is_heading and current_lines:
-                # Save current section, start new one with this heading
-                section_text = '\n'.join(current_lines).strip()
-                if section_text:
-                    sections.append(section_text)
-                current_lines = [line]
-            else:
-                current_lines.append(line)
-
-        # Don't forget the last section
-        if current_lines:
-            section_text = '\n'.join(current_lines).strip()
-            if section_text:
-                sections.append(section_text)
-
-        logger.debug(f'Split into {len(sections)} sections by headings')
-        return sections
-
-    def _split_by_paragraphs(self, text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
-        """Split a section into chunks by paragraph boundaries with overlap."""
-        paragraphs = text.split('\n\n')
-        chunks = []
-        current_chunk = ''
-
-        for paragraph in paragraphs:
-            paragraph = paragraph.strip()
-            if not paragraph:
-                continue
-
-            if len(current_chunk) + len(paragraph) + 2 <= chunk_size:
-                current_chunk = current_chunk + '\n\n' + paragraph if current_chunk else paragraph
-            else:
-                if current_chunk:
-                    chunks.append(current_chunk.strip())
-                if len(paragraph) > chunk_size:
-                    # Paragraph itself too long -- split by sentences
-                    sub_chunks = self._split_long_text(paragraph, chunk_size, chunk_overlap)
-                    chunks.extend(sub_chunks)
-                    current_chunk = ''
-                else:
-                    # Start new chunk; add overlap from end of previous chunk
-                    if chunks:
-                        overlap_text = chunks[-1][-chunk_overlap:]
-                        current_chunk = overlap_text + '\n\n' + paragraph
-                    else:
-                        current_chunk = paragraph
-
-        if current_chunk.strip():
-            chunks.append(current_chunk.strip())
-
-        return chunks
-
-    def _split_long_text(self, text: str, chunk_size: int, overlap: int) -> list[str]:
-        """Split a long text block by sentence boundaries with overlap."""
-        chunks = []
-        start = 0
-        while start < len(text):
-            end = start + chunk_size
-
-            # Try to break at sentence boundary
-            if end < len(text):
-                search_start = max(end - 100, start)
-                last_period = max(
-                    text.rfind('. ', search_start, end),
-                    text.rfind('! ', search_start, end),
-                    text.rfind('? ', search_start, end),
-                    text.rfind('\n', search_start, end),
-                )
-                if last_period > start:
-                    end = last_period + 1
-
-            chunk = text[start:end].strip()
-            if chunk:
-                chunks.append(chunk)
-
-            start = end - overlap if end < len(text) else len(text)
-
-        return chunks
+        """Split text into chunks respecting section boundaries."""
+        return _chunk_text(text)
 
     # -------------------------------------------------------------------------
     # Embeddings
