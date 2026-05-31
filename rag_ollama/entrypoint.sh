@@ -40,8 +40,13 @@ python manage.py collectstatic --noinput 2>/dev/null || true
 
 # Create superuser if needed
 if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
-    echo "Creating superuser..."
-    python manage.py createsuperuser --noinput 2>/dev/null || true
+    if [ -z "$DJANGO_SUPERUSER_PASSWORD" ]; then
+        echo "WARNING: DJANGO_SUPERUSER_PASSWORD is not set -- skipping superuser creation."
+        echo "         Set it in .env and restart to create the admin account."
+    else
+        echo "Creating superuser..."
+        python manage.py createsuperuser --noinput 2>/dev/null || true
+    fi
 fi
 
 # Sync ChromaDB metadata

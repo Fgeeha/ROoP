@@ -77,9 +77,9 @@ services:
       - POSTGRES_HOST=postgres
       - OLLAMA_URL=http://ollama:11434
       - CHROMA_PERSIST_DIR=/app/chroma_data
-      - DJANGO_SUPERUSER_USERNAME=admin
-      - DJANGO_SUPERUSER_PASSWORD=admin123
-      - DJANGO_SUPERUSER_EMAIL=admin@localhost
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-admin}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@localhost}
     depends_on:
       postgres:
         condition: service_healthy
