@@ -35,7 +35,7 @@ make up-cpu
 Первый запуск занимает время -- скачиваются модели Ollama (mistral ~4GB, nomic-embed-text ~300MB).
 
 Открыть: **http://localhost:8000**
-Django Admin: **http://localhost:8000/admin/** (admin / admin123)
+Django Admin: **http://localhost:8000/admin/** (логин и пароль из `.env` → `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`)
 
 ### Вариант 2. Docker + удалённая Ollama (Ollama на другом сервере)
 
@@ -331,11 +331,8 @@ rag_ollama/
 ### Authentication
 
 ```bash
-# API Key в заголовке
+# API Key передаётся только в заголовке Authorization
 curl -H "Authorization: Api-Key your-secret-api-key-change-me" http://localhost:8000/api/stats/
-
-# API Key в query параметре
-curl http://localhost:8000/api/stats/?api_key=your-secret-api-key-change-me
 ```
 
 ### Endpoints
@@ -381,38 +378,43 @@ curl -X DELETE http://localhost:8000/api/docs/1/ \
 
 ## Настройки (.env)
 
+Полный шаблон — в `.env.example`. Ключевые переменные:
+
 ```ini
-# Django
+# Django (обязательно сменить в production)
 SECRET_KEY=django-insecure-change-me-in-production-abcdef123456
 DEBUG=False
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 
-# LLM Backend: "ollama" or "openwebui"
-LLM_BACKEND=ollama
+# Суперпользователь (создаётся автоматически при первом старте контейнера)
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_PASSWORD=change-me-before-first-run   # ОБЯЗАТЕЛЬНО изменить!
+DJANGO_SUPERUSER_EMAIL=admin@localhost
 
-# Ollama (при LLM_BACKEND=ollama)
+# LLM Backend: "ollama" (прямое подключение) или "openwebui" (через Open WebUI)
+LLM_BACKEND=ollama
 OLLAMA_URL=http://ollama:11434
 # OLLAMA_URL=http://localhost:11434        # локальная разработка
 # OLLAMA_URL=http://192.168.1.100:11434    # удалённый сервер
 
-# Open WebUI (при LLM_BACKEND=openwebui)
-OPENWEBUI_URL=http://192.168.1.100:3000
-OPENWEBUI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# Модели (используются обоими backend-ами)
 EMBED_MODEL=nomic-embed-text
 LLM_MODEL=mistral
+
+# Таймаут запроса к Ollama, секунды. На CPU-машинах поднять при ошибках таймаута.
+OLLAMA_REQUEST_TIMEOUT=300
 
 # ChromaDB
 CHROMA_PERSIST_DIR=/app/chroma_data
 CHROMA_COLLECTION=rag_documents
 
-# RAG
+# RAG — параметры качества и производительности
 CHUNK_SIZE=1000
 CHUNK_OVERLAP=200
-SEARCH_K=4
+SEARCH_K=6                      # чанков на запрос
+SEARCH_RELEVANCE_THRESHOLD=0.20 # 0.0 = без фильтрации; поднять при мусоре в ответах
+EMBED_BATCH_SIZE=10             # снизить при нехватке памяти
 
-# API (ключ для доступа к RAG API, не путать с Open WebUI ключом)
+# API key (только заголовок Authorization: Api-Key <key>)
 API_KEY=your-secret-api-key-change-me
 
 # Logging
@@ -435,6 +437,15 @@ Django Admin доступен по адресу: **http://localhost:8000/admin/*
 ---
 
 ## Troubleshooting
+
+### Документ завис в статусе «Обрабатывается» или показывает «Ошибка индексации»
+
+При перезапуске сервиса (или OOM-kill) документы в статусе «Обрабатывается» автоматически
+переводятся в «Ошибка» с сообщением «Индексация прервана — переиндексируйте».
+Удалите документ и загрузите снова.
+
+Если индексация падает с ошибкой таймаута на слабой CPU-машине — поднять `OLLAMA_REQUEST_TIMEOUT`
+в `.env` (напр. `600`) и перезапустить сервис.
 
 ### Ollama не запускается
 
