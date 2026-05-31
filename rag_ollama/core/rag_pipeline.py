@@ -16,6 +16,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.rag.backends import OllamaBackend, OpenWebUIBackend, create_llm_backend  # noqa: F401
+from core.rag.extractor import extract_text as _extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -80,181 +81,12 @@ class RAGPipeline:
         return self._llm_backend
 
     # -------------------------------------------------------------------------
-    # Text extraction
+    # Text extraction — delegated to core.rag.extractor
     # -------------------------------------------------------------------------
 
     def extract_text(self, file_path: str, file_type: str) -> str:
         """Extract text content from a file."""
-        logger.info(f'Extracting text from: {file_path} (type: {file_type})')
-
-        if file_type == 'pdf':
-            raw = self._extract_pdf(file_path)
-        elif file_type in ('txt', 'md'):
-            raw = self._extract_text_file(file_path)
-        elif file_type == 'docx':
-            raw = self._extract_docx(file_path)
-        elif file_type == 'doc':
-            raw = self._extract_doc(file_path)
-        else:
-            raise ValueError(f'Unsupported file type: {file_type}')
-
-        cleaned = self._clean_extracted_text(raw)
-        logger.info(f'Text extracted and cleaned: {len(raw)} -> {len(cleaned)} chars')
-        return cleaned
-
-    def _extract_pdf(self, file_path: str) -> str:
-        """Extract text from PDF using pdfplumber (much better layout handling than PyPDF2)."""
-        import pdfplumber
-
-        text_parts = []
-        with pdfplumber.open(file_path) as pdf:
-            for page_num, page in enumerate(pdf.pages):
-                page_text = page.extract_text(
-                    x_tolerance=2,  # merge chars closer than 2pt (fixes broken words)
-                    y_tolerance=3,  # merge lines closer than 3pt
-                )
-                if page_text:
-                    text_parts.append(page_text)
-                    logger.debug(f'Extracted page {page_num + 1}: {len(page_text)} chars')
-
-        full_text = '\n\n'.join(text_parts)
-        logger.info(f'PDF extraction complete: {len(full_text)} chars from {len(pdf.pages)} pages')
-        return full_text
-
-    def _extract_text_file(self, file_path: str) -> str:
-        """Extract text from TXT/MD file with encoding detection."""
-        import chardet
-
-        with open(file_path, 'rb') as f:
-            raw_data = f.read()
-
-        detected = chardet.detect(raw_data)
-        encoding = detected.get('encoding', 'utf-8') or 'utf-8'
-        logger.debug(f'Detected encoding: {encoding} (confidence: {detected.get("confidence", 0):.2f})')
-
-        try:
-            text = raw_data.decode(encoding)
-        except (UnicodeDecodeError, LookupError):
-            text = raw_data.decode('utf-8', errors='replace')
-
-        return text
-
-    def _extract_docx(self, file_path: str) -> str:
-        """Extract text from DOCX file using python-docx."""
-        import docx
-
-        doc = docx.Document(file_path)
-        text_parts = []
-
-        for paragraph in doc.paragraphs:
-            text = paragraph.text.strip()
-            if text:
-                text_parts.append(text)
-
-        # Also extract text from tables
-        for table in doc.tables:
-            for row in table.rows:
-                row_text = '\t'.join(cell.text.strip() for cell in row.cells if cell.text.strip())
-                if row_text:
-                    text_parts.append(row_text)
-
-        full_text = '\n\n'.join(text_parts)
-        logger.info(f'DOCX extraction complete: {len(full_text)} chars')
-        return full_text
-
-    def _extract_doc(self, file_path: str) -> str:
-        """
-        Extract text from legacy DOC file.
-        Uses antiword (system utility) as primary method.
-        Falls back to python-docx in case the file is actually DOCX with .doc extension.
-        """
-        import subprocess
-
-        # Try antiword first (handles genuine .doc binary format)
-        try:
-            result = subprocess.run(  # noqa: S603
-                ['/usr/bin/antiword', '-w', '0', file_path],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                logger.info(f'DOC extraction via antiword complete: {len(result.stdout)} chars')
-                return result.stdout
-            logger.warning(f'antiword returned code {result.returncode}: {result.stderr.strip()}')
-        except FileNotFoundError:
-            logger.warning('antiword not installed, falling back to python-docx')
-        except subprocess.TimeoutExpired:
-            logger.warning('antiword timed out, falling back to python-docx')
-
-        # Fallback: try python-docx (works if the file is actually DOCX with .doc extension)
-        try:
-            return self._extract_docx(file_path)
-        except Exception as e:
-            raise ValueError(
-                'Не удалось извлечь текст из DOC файла. '
-                'Убедитесь, что antiword установлен (apt-get install antiword) '
-                'или конвертируйте файл в DOCX формат.'
-            ) from e
-
-    def _clean_extracted_text(self, text: str) -> str:
-        """
-        Post-process extracted text:
-        - Remove repeated page headers/footers (address blocks, page numbers)
-        - Fix broken words (letters separated by spaces within a word)
-        - Normalize whitespace
-        """
-        lines = text.split('\n')
-
-        # 1. Detect and remove repeated header/footer lines.
-        #    Lines appearing on 3+ "pages" (delimited by double-newline) are likely headers/footers.
-        page_blocks = text.split('\n\n')
-        if len(page_blocks) >= 3:
-            line_counts: dict[str, int] = {}
-            for block in page_blocks:
-                seen_in_block: set[str] = set()
-                for line in block.split('\n'):
-                    stripped = line.strip()
-                    if stripped and stripped not in seen_in_block:
-                        seen_in_block.add(stripped)
-                        line_counts[stripped] = line_counts.get(stripped, 0) + 1
-
-            # Lines that appear in >= 40% of page blocks are headers/footers
-            threshold = max(3, len(page_blocks) * 0.4)
-            header_footer_lines = {
-                line for line, count in line_counts.items() if count >= threshold and len(line) < 200
-            }
-
-            if header_footer_lines:
-                logger.info(f'Removing {len(header_footer_lines)} repeated header/footer patterns')
-                lines = [line for line in lines if line.strip() not in header_footer_lines]
-
-        # 2. Remove standalone page numbers (lines that are just a number)
-        lines = [line for line in lines if not re.match(r'^\s*\d{1,4}\s*$', line)]
-
-        # 3. Join lines
-        text = '\n'.join(lines)
-
-        # 4. Fix clearly broken words: only merge single isolated letter fragments.
-        #    Example: "переведе н на" has an isolated single "н" between spaces.
-        #    Pattern: word fragment (2+ chars) + space + single letter + space
-        #    This is safe because single Cyrillic letters between spaces are almost
-        #    never real words (except "в", "и", "с", "к", "о", "а", "у" - prepositions).
-        _prepositions = set('вискоау')
-
-        def _merge_fragment(m):
-            frag = m.group(2)
-            if frag.lower() in _prepositions:
-                return m.group(0)  # keep as is -- it's a real word
-            return m.group(1) + frag + ' '
-
-        text = re.sub(r'([а-яА-ЯёЁ]{2,}) ([а-яёЁА-ЯЁ]) ', _merge_fragment, text)
-
-        # 5. Normalize excessive whitespace
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        text = re.sub(r'[ \t]{2,}', ' ', text)
-
-        return text.strip()
+        return _extract_text(file_path, file_type)
 
     # -------------------------------------------------------------------------
     # Chunking
