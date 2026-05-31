@@ -20,12 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Heading patterns for Russian technical documents.
 # Examples: "Социальная защита", "Модуль интеграции", "Расписание"
-HEADING_RE = re.compile(
-    r'^(?:'
-    r'(?:Модуль|Раздел|Глава|Часть|Блок)\s+.+'
-    r'|[А-ЯЁ][а-яёА-ЯЁ\s\-]{2,60}'
-    r')$'
-)
+HEADING_RE = re.compile(r'^(?:' r'(?:Модуль|Раздел|Глава|Часть|Блок)\s+.+' r'|[А-ЯЁ][а-яёА-ЯЁ\s\-]{2,60}' r')$')
 
 
 def chunk_text(text: str) -> list[str]:
