@@ -61,6 +61,14 @@ class Document(models.Model):
         default='',
         verbose_name='Сообщение об ошибке',
     )
+    processed_chunks = models.IntegerField(
+        default=0,
+        verbose_name='Обработано чанков',
+    )
+    total_chunks = models.IntegerField(
+        default=0,
+        verbose_name='Всего чанков',
+    )
     uploaded_at = models.DateTimeField(
         default=timezone.now,
         verbose_name='Дата загрузки',

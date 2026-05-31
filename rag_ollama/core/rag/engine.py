@@ -16,6 +16,7 @@ import chromadb
 from django.conf import settings
 from django.utils import timezone
 
+from core.models import Chunk
 from core.rag.backends import create_llm_backend
 from core.rag.chunker import chunk_text as _chunk_text
 from core.rag.extractor import extract_text as _extract_text
@@ -129,9 +130,19 @@ class RAGPipeline:
         filename: str,
         user_id: int | None = None,
         is_shared: bool = False,
+        progress_callback=None,
     ) -> list[str]:
         """Add text chunks to ChromaDB with embeddings."""
-        return _add_chunks_to_chroma(self.collection, self.llm, chunks, document_id, filename, user_id, is_shared)
+        return _add_chunks_to_chroma(
+            self.collection,
+            self.llm,
+            chunks,
+            document_id,
+            filename,
+            user_id,
+            is_shared,
+            progress_callback=progress_callback,
+        )
 
     def delete_document_from_chroma(self, document_id: int) -> None:
         """Remove all chunks of a document from ChromaDB."""
@@ -157,8 +168,6 @@ class RAGPipeline:
         3. Generate embeddings and store in ChromaDB
         4. Create Chunk model instances
         """
-        from core.models import Chunk
-
         logger.info('Processing document: %s', document.original_filename)
         document.status = 'processing'
         document.save(update_fields=['status'])
@@ -172,12 +181,29 @@ class RAGPipeline:
             if not chunks:
                 raise ValueError('No chunks generated from document text')
 
+            # Record total chunk count immediately so the HTMX poller can show
+            # "N of M" even before the first embed batch completes.
+            document.__class__.objects.filter(pk=document.id).update(
+                total_chunks=len(chunks),
+                processed_chunks=0,
+            )
+
+            def _progress_callback(done: int, total: int) -> None:
+                try:
+                    document.__class__.objects.filter(pk=document.id).update(
+                        processed_chunks=done,
+                        total_chunks=total,
+                    )
+                except Exception:
+                    logger.warning('Progress update failed for document %d', document.id)
+
             chroma_ids = self.add_chunks_to_chroma(
                 chunks=chunks,
                 document_id=document.id,
                 filename=document.original_filename,
                 user_id=document.user_id,
                 is_shared=document.is_shared,
+                progress_callback=_progress_callback,
             )
 
             chunk_objects = []

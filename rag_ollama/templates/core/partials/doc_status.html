@@ -4,16 +4,28 @@
      hx-trigger="every 2s"
      hx-target="this"
      hx-swap="outerHTML">
+    {% if document.total_chunks > 0 %}
+    <span class="status-badge status-processing">
+        &#9203; Индексируется: {{ document.processed_chunks }}&nbsp;/&nbsp;{{ document.total_chunks }} чанков
+    </span>
+    {% else %}
     <span class="status-badge status-processing">&#9203; Индексируется&hellip;</span>
+    {% endif %}
 </div>
 {% elif document.status == 'completed' %}
 <div id="doc-status-{{ document.id }}">
-    <span class="status-badge status-completed">&#10003; Готово &mdash; {{ document.chunks_count }} фрагм.</span>
+    <span class="status-badge status-completed">
+        &#10003; Готово &mdash; {{ document.chunks_count }} фрагм.
+    </span>
 </div>
 {% else %}
 <div id="doc-status-{{ document.id }}">
-    <span class="status-badge status-error" title="{{ document.error_message }}">
+    <span class="status-badge status-error"
+          title="{{ document.error_message|default:'Неизвестная ошибка' }}">
         &#10007; Ошибка индексации
+        {% if document.error_message %}
+        <small class="error-hint">{{ document.error_message|truncatechars:120 }}</small>
+        {% endif %}
     </span>
 </div>
 {% endif %}
