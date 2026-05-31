@@ -21,23 +21,35 @@ def add_chunks_to_chroma(
     filename: str,
     user_id: int | None = None,
     is_shared: bool = False,
+    progress_callback=None,
 ) -> list[str]:
     """Add text chunks to ChromaDB with embeddings.
 
-    Returns the list of Chroma IDs created.
+    Embeddings are generated in batches of settings.EMBED_BATCH_SIZE to:
+    - Respect OLLAMA_REQUEST_TIMEOUT per request (not per whole document).
+    - Bound memory use on machines without GPU.
+    - Enable per-batch progress reporting (Stage 3).
+
+    Args:
+        progress_callback: optional callable(done: int, total: int) invoked after
+            each embed batch.  Receives count of chunks embedded so far and total.
+            Ignored when None.
+
+    Returns:
+        List of Chroma IDs for the inserted chunks.
     """
     if not chunks:
         return []
 
-    logger.info('Generating embeddings for %d chunks...', len(chunks))
-    embeddings = backend.embed(texts=chunks, model=settings.EMBED_MODEL)
+    total = len(chunks)
+    embed_batch_size = settings.EMBED_BATCH_SIZE
 
+    # Build all Chroma IDs and metadata upfront (cheap, no I/O).
     chroma_ids = []
     metadatas = []
     for i, chunk in enumerate(chunks):
         chunk_hash = hashlib.md5(chunk.encode(), usedforsecurity=False).hexdigest()[:12]
-        chroma_id = f'doc{document_id}_chunk{i}_{chunk_hash}'
-        chroma_ids.append(chroma_id)
+        chroma_ids.append(f'doc{document_id}_chunk{i}_{chunk_hash}')
         metadatas.append(
             {
                 'document_id': str(document_id),
@@ -49,17 +61,32 @@ def add_chunks_to_chroma(
             }
         )
 
-    batch_size = 100
-    for batch_start in range(0, len(chunks), batch_size):
-        batch_end = min(batch_start + batch_size, len(chunks))
+    # Generate embeddings in small batches so each HTTP request is time-bounded.
+    logger.info('Generating embeddings for %d chunks (batch_size=%d)...', total, embed_batch_size)
+    all_embeddings: list[list[float]] = []
+    for batch_start in range(0, total, embed_batch_size):
+        batch_end = min(batch_start + embed_batch_size, total)
+        batch_embeddings = backend.embed(
+            texts=chunks[batch_start:batch_end],
+            model=settings.EMBED_MODEL,
+        )
+        all_embeddings.extend(batch_embeddings)
+        logger.debug('Embedded %d/%d chunks', batch_end, total)
+        if progress_callback is not None:
+            progress_callback(batch_end, total)
+
+    # Write to ChromaDB in batches of 100 (ChromaDB internal limit).
+    chroma_batch_size = 100
+    for batch_start in range(0, total, chroma_batch_size):
+        batch_end = min(batch_start + chroma_batch_size, total)
         collection.add(
             ids=chroma_ids[batch_start:batch_end],
-            embeddings=embeddings[batch_start:batch_end],
+            embeddings=all_embeddings[batch_start:batch_end],
             documents=chunks[batch_start:batch_end],
             metadatas=metadatas[batch_start:batch_end],
         )
 
-    logger.info('Added %d chunks to ChromaDB for document %d', len(chunks), document_id)
+    logger.info('Added %d chunks to ChromaDB for document %d', total, document_id)
     return chroma_ids
 
 

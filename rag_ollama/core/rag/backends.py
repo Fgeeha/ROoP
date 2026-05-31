@@ -20,10 +20,13 @@ logger = logging.getLogger(__name__)
 class OllamaBackend:
     """Direct Ollama API client."""
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, timeout: int = 300):
         self.url = url
-        self._client = ollama.Client(host=url)
-        logger.info('Ollama backend initialized: %s', url)
+        self._timeout = timeout
+        # timeout applies per HTTP request (embed + chat).
+        # Without a timeout, CPU-bound embed calls can hang indefinitely.
+        self._client = ollama.Client(host=url, timeout=timeout)
+        logger.info('Ollama backend initialized: %s (timeout=%ds)', url, timeout)
 
     def embed(self, texts: list[str], model: str) -> list[list[float]]:
         response = self._client.embed(model=model, input=texts)
@@ -161,4 +164,4 @@ def create_llm_backend() -> OllamaBackend | OpenWebUIBackend:
         if not api_key:
             logger.warning('OPENWEBUI_API_KEY is not set -- requests may be rejected')
         return OpenWebUIBackend(url=url, api_key=api_key)
-    return OllamaBackend(url=settings.OLLAMA_URL)
+    return OllamaBackend(url=settings.OLLAMA_URL, timeout=settings.OLLAMA_REQUEST_TIMEOUT)

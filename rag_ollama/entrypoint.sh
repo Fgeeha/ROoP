@@ -49,6 +49,10 @@ if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
     fi
 fi
 
+# Recover documents that were stuck in 'processing' when the server was last killed
+echo "Recovering stuck documents..."
+python manage.py recover_stuck_documents || true
+
 # Sync ChromaDB metadata
 echo "Syncing ChromaDB metadata..."
 python manage.py sync_chroma_metadata 2>/dev/null || true

@@ -192,6 +192,9 @@ LLM_BACKEND = os.getenv('LLM_BACKEND', 'ollama').lower()
 OLLAMA_URL = os.getenv('OLLAMA_URL', 'http://localhost:11434')
 EMBED_MODEL = os.getenv('EMBED_MODEL', 'nomic-embed-text')
 LLM_MODEL = os.getenv('LLM_MODEL', 'mistral')
+# Per-request timeout for Ollama API calls (embed + chat).
+# CPU machines can take minutes per request; 300s is generous but finite.
+OLLAMA_REQUEST_TIMEOUT = int(os.getenv('OLLAMA_REQUEST_TIMEOUT', '300'))
 
 # Open WebUI settings (used when LLM_BACKEND=openwebui)
 OPENWEBUI_URL = os.getenv('OPENWEBUI_URL', 'http://localhost:3000')
@@ -204,6 +207,9 @@ CHROMA_COLLECTION = os.getenv('CHROMA_COLLECTION', 'rag_documents')
 # RAG settings
 CHUNK_SIZE = int(os.getenv('CHUNK_SIZE', '1000'))
 CHUNK_OVERLAP = int(os.getenv('CHUNK_OVERLAP', '200'))
+# Number of text chunks per single embed() request to Ollama.
+# Smaller batches = shorter per-request wall time on CPU, finer progress granularity.
+EMBED_BATCH_SIZE = int(os.getenv('EMBED_BATCH_SIZE', '10'))
 # SEARCH_K: number of chunks retrieved before relevance filtering.
 # nomic-embed-text chunks at ~1000 chars; Mistral context window is 32k tokens.
 # 6-8 chunks gives ~6-8k chars of context -- well within the window.
