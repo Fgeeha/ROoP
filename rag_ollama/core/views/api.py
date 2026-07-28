@@ -17,7 +17,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..indexing import start_indexing_async
+from ..indexing import QUEUE_FULL_USER_MESSAGE, IndexingQueueFullError, start_indexing_async
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
 from ..serializers import (
@@ -27,7 +27,13 @@ from ..serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
 )
-from .helpers import FileValidationError, format_size, user_docs_q, validate_and_save_upload
+from .helpers import (
+    FileTooLargeError,
+    FileValidationError,
+    format_size,
+    user_docs_q,
+    validate_and_save_upload,
+)
 
 logger = logging.getLogger('core')
 
@@ -47,6 +53,8 @@ def api_upload(request):
 
     try:
         file_path, ext, unique_name = validate_and_save_upload(uploaded_file)
+    except FileTooLargeError as e:
+        return Response({'error': str(e)}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
     except FileValidationError as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -60,7 +68,18 @@ def api_upload(request):
         status=Document.Status.PENDING,
     )
 
-    start_indexing_async(document.id)
+    try:
+        start_indexing_async(document.id)
+    except IndexingQueueFullError:
+        # The file stays on disk and the document row is kept, so the user can
+        # retry once the backlog drains instead of re-uploading.
+        document.status = Document.Status.ERROR
+        document.error_message = QUEUE_FULL_USER_MESSAGE
+        document.save(update_fields=['status', 'error_message'])
+        return Response(
+            {'error': QUEUE_FULL_USER_MESSAGE, 'id': document.id},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
     return Response(
         {

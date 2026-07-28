@@ -37,3 +37,15 @@ def _use_simple_static_storage(settings):
             'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
         },
     }
+
+
+@pytest.fixture(autouse=True)
+def _isolate_media_root(settings, tmp_path):
+    """
+    Redirect MEDIA_ROOT to a per-test temp dir.
+
+    Upload tests exercise the real view → validate_and_save_upload path, which
+    writes to disk.  Without this, every run would litter the repository's
+    media/documents/ with stray files.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / 'media')

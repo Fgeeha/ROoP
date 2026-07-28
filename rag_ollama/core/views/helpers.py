@@ -4,6 +4,7 @@ Shared helpers for views.
 
 import os
 import uuid
+from pathlib import Path
 
 import magic
 from django.conf import settings
@@ -33,17 +34,38 @@ class FileValidationError(ValueError):
     """Raised when an uploaded file fails extension or MIME validation."""
 
 
+class FileTooLargeError(FileValidationError):
+    """Raised when an uploaded file exceeds settings.MAX_UPLOAD_SIZE."""
+
+
+def _too_large_message(max_size: int) -> str:
+    """User-facing message for an over-limit upload."""
+    return f'Файл слишком большой. Максимальный размер: {max_size / (1024 * 1024):.0f} МБ'
+
+
 def validate_and_save_upload(uploaded_file) -> tuple[str, str, str]:
     """
-    Validate uploaded file (extension + MIME signature) and write it to disk.
+    Validate uploaded file (size + extension + MIME signature) and write it to disk.
+
+    The size limit is enforced twice on purpose: once against the size Django
+    reports, and again while streaming the file to disk.  A client-supplied
+    Content-Length is never trusted on its own.
 
     Returns:
         (file_path, ext, unique_name)  — absolute path, lower-cased extension,
         uuid-prefixed filename stored on disk.
 
     Raises:
+        FileTooLargeError: when the file exceeds settings.MAX_UPLOAD_SIZE.
         FileValidationError: when extension or MIME type is not allowed.
     """
+    max_size = settings.MAX_UPLOAD_SIZE
+
+    # --- Size check (runs first: reject before any extension/MIME work) ---
+    declared_size = getattr(uploaded_file, 'size', None)
+    if declared_size is not None and declared_size > max_size:
+        raise FileTooLargeError(_too_large_message(max_size))
+
     # --- Extension check ---
     name = uploaded_file.name or ''
     ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
@@ -68,9 +90,19 @@ def validate_and_save_upload(uploaded_file) -> tuple[str, str, str]:
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, unique_name)
 
-    with open(file_path, 'wb+') as dest:
-        for chunk in uploaded_file.chunks():
-            dest.write(chunk)
+    # Stream to disk, re-checking the limit as bytes actually arrive so an
+    # understated Content-Length cannot smuggle an oversized file through.
+    written = 0
+    try:
+        with open(file_path, 'wb+') as dest:
+            for chunk in uploaded_file.chunks():
+                written += len(chunk)
+                if written > max_size:
+                    raise FileTooLargeError(_too_large_message(max_size))
+                dest.write(chunk)
+    except FileTooLargeError:
+        Path(file_path).unlink(missing_ok=True)
+        raise
 
     return file_path, ext, unique_name
 

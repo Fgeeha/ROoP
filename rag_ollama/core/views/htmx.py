@@ -9,10 +9,10 @@ from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from ..indexing import start_indexing_async
+from ..indexing import QUEUE_FULL_USER_MESSAGE, IndexingQueueFullError, start_indexing_async
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
-from .helpers import format_size, user_docs_q, validate_and_save_upload
+from .helpers import FileValidationError, format_size, user_docs_q, validate_and_save_upload
 
 logger = logging.getLogger('core')
 
@@ -104,12 +104,21 @@ def htmx_upload(request):
 
     try:
         file_path, ext, unique_name = validate_and_save_upload(uploaded_file)
-    except Exception as e:
-        logger.error('Upload validation error: %s', e)
+    except FileValidationError as e:
+        # Message is already user-facing (size / extension / MIME mismatch).
+        logger.info('Upload rejected: %s', e)
         return render(
             request,
             'core/partials/upload_result.html',
             {'success': False, 'error': str(e)},
+        )
+    except OSError:
+        # Disk full, permissions, etc. — keep internals in the log only.
+        logger.exception('Upload failed while writing file to disk')
+        return render(
+            request,
+            'core/partials/upload_result.html',
+            {'success': False, 'error': 'Не удалось сохранить файл. Попробуйте ещё раз.'},
         )
 
     document = Document.objects.create(
@@ -122,7 +131,20 @@ def htmx_upload(request):
         status=Document.Status.PENDING,
     )
 
-    start_indexing_async(document.id)
+    try:
+        start_indexing_async(document.id)
+    except IndexingQueueFullError:
+        # The file stays on disk and the document row is kept, so the user can
+        # retry once the backlog drains instead of re-uploading.
+        document.status = Document.Status.ERROR
+        document.error_message = QUEUE_FULL_USER_MESSAGE
+        document.save(update_fields=['status', 'error_message'])
+        return render(
+            request,
+            'core/partials/upload_result.html',
+            {'success': False, 'error': QUEUE_FULL_USER_MESSAGE},
+            status=503,
+        )
 
     return render(
         request,

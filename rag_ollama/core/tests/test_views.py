@@ -1,10 +1,25 @@
-"""Tests for core views (auth, UI pages, sharing)."""
+"""Tests for core views (auth, UI pages, sharing, HTMX upload)."""
+
+import os
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
+from core.indexing import IndexingQueueFullError
 from core.models import ChatMessage, Document, SharedLink, UserProfile
+
+# Small limit so tests never build a real multi-MB payload.
+TEST_MAX_UPLOAD_SIZE = 1024
+PDF_HEADER = b'%PDF-1.4\n%%EOF\n'
+
+
+def _pdf_upload(size: int, name: str = 'doc.pdf') -> SimpleUploadedFile:
+    """Build a PDF-looking upload of exactly `size` bytes."""
+    content = (PDF_HEADER + b'A' * size)[:size]
+    return SimpleUploadedFile(name, content, content_type='application/pdf')
 
 
 @pytest.fixture
@@ -158,6 +173,76 @@ class TestHtmxEndpoints:
         resp = auth_client.post('/htmx/chat/clear/')
         assert resp.status_code == 200
         assert ChatMessage.objects.filter(user=user).count() == 0
+
+
+# ============================================================================
+# HTMX upload — size limit and queue backpressure
+# ============================================================================
+
+
+@pytest.mark.django_db
+class TestHtmxUploadLimits:
+    def test_upload_under_limit_is_queued(self, auth_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.htmx.start_indexing_async') as mock_start:
+            resp = auth_client.post('/htmx/upload/', {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE - 1)})
+
+        assert resp.status_code == 200
+        mock_start.assert_called_once()
+        assert Document.objects.count() == 1
+
+    def test_upload_exactly_at_limit_is_queued(self, auth_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.htmx.start_indexing_async') as mock_start:
+            resp = auth_client.post('/htmx/upload/', {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE)})
+
+        assert resp.status_code == 200
+        mock_start.assert_called_once()
+
+    def test_upload_over_limit_shows_error(self, auth_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.htmx.start_indexing_async') as mock_start:
+            resp = auth_client.post('/htmx/upload/', {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE + 500)})
+
+        assert resp.status_code == 200  # HTMX partial carries the error inline
+        body = resp.content.decode()
+        assert 'слишком большой' in body
+        mock_start.assert_not_called()
+
+    def test_over_limit_creates_no_document(self, auth_client, settings):
+        """A rejected file must not leave a Document row behind."""
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.htmx.start_indexing_async'):
+            auth_client.post('/htmx/upload/', {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE + 500)})
+
+        assert Document.objects.count() == 0
+
+    def test_error_partial_has_no_stack_trace(self, auth_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        resp = auth_client.post('/htmx/upload/', {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE + 500)})
+
+        body = resp.content.decode()
+        assert 'Traceback' not in body
+        assert 'core/views/helpers.py' not in body
+
+    def test_queue_full_returns_503_and_marks_error(self, auth_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.htmx.start_indexing_async', side_effect=IndexingQueueFullError('full')):
+            resp = auth_client.post('/htmx/upload/', {'file': _pdf_upload(100)})
+
+        assert resp.status_code == 503
+        document = Document.objects.get()
+        assert document.status == Document.Status.ERROR
+        assert document.error_message
+
+    def test_queue_full_keeps_uploaded_file(self, auth_client, settings):
+        """The file must survive a queue-full rejection so the user can retry."""
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.htmx.start_indexing_async', side_effect=IndexingQueueFullError('full')):
+            auth_client.post('/htmx/upload/', {'file': _pdf_upload(100)})
+
+        document = Document.objects.get()
+        assert os.path.exists(document.file_path)
 
 
 # ============================================================================

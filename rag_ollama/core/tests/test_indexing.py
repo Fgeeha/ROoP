@@ -5,10 +5,20 @@ All external I/O (RAGPipeline, DB connection.close) is mocked so the
 suite runs without Ollama, ChromaDB, or a running PostgreSQL.
 """
 
+import queue
 import threading
 from unittest.mock import MagicMock, patch
 
-from core.indexing import _run_indexing_in_thread, start_indexing_async
+import pytest
+
+import core.indexing as indexing_module
+from core.indexing import (
+    INDEXING_QUEUE_MAXSIZE,
+    IndexingQueueFullError,
+    _run_indexing_in_thread,
+    shutdown_indexing_worker,
+    start_indexing_async,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -26,61 +36,274 @@ def _make_doc(status='pending', pk=42):
     return doc
 
 
+@pytest.fixture
+def clean_worker():
+    """Ensure each test starts and ends with no indexing worker running."""
+    shutdown_indexing_worker(timeout=2)
+    yield
+    shutdown_indexing_worker(timeout=2)
+
+
 # ---------------------------------------------------------------------------
-# start_indexing_async
+# start_indexing_async — queue semantics
 # ---------------------------------------------------------------------------
 
 
 class TestStartIndexingAsync:
-    def test_returns_immediately(self):
+    def test_returns_immediately(self, clean_worker):
         """start_indexing_async must not block the caller."""
         started = threading.Event()
+        release = threading.Event()
 
         def slow_index(doc_id):
             started.set()
+            release.wait(timeout=5)
 
         with patch('core.indexing._run_indexing_in_thread', side_effect=slow_index):
-            # Even if _run_indexing_in_thread blocks, start_indexing_async
-            # should return before it finishes.  We just check the thread was
-            # launched and the call returns.
             start_indexing_async(99)
-            # Give the daemon thread a moment to fire
-            started.wait(timeout=2)
-            assert started.is_set()
+            assert started.wait(timeout=5), 'worker never picked up the task'
+            release.set()
 
-    def test_spawns_daemon_thread(self):
-        """The spawned thread must be a daemon so it doesn't block shutdown."""
-        spawned: list[threading.Thread] = []
-        original_start = threading.Thread.start
+    def test_uses_single_named_worker_thread(self, clean_worker):
+        """Work runs on one long-lived 'indexing-worker' thread, not a per-document thread."""
+        seen: list[str] = []
+        done = threading.Event()
 
-        def capture_start(self, *args, **kwargs):
-            spawned.append(self)
-            original_start(self, *args, **kwargs)
+        def record(doc_id):
+            seen.append(threading.current_thread().name)
+            if len(seen) == 3:
+                done.set()
 
-        with (
-            patch('core.indexing._run_indexing_in_thread'),
-            patch.object(threading.Thread, 'start', capture_start),
-        ):
+        with patch('core.indexing._run_indexing_in_thread', side_effect=record):
+            for doc_id in (1, 2, 3):
+                start_indexing_async(doc_id)
+            assert done.wait(timeout=5)
+
+        assert set(seen) == {'indexing-worker'}, f'expected one worker thread, got {set(seen)}'
+
+    def test_only_one_indexing_runs_at_a_time(self, clean_worker):
+        """Two documents queued together must never be indexed concurrently."""
+        concurrent = 0
+        max_concurrent = 0
+        lock = threading.Lock()
+        both_done = threading.Event()
+        processed = 0
+
+        def track(doc_id):
+            nonlocal concurrent, max_concurrent, processed
+            with lock:
+                concurrent += 1
+                max_concurrent = max(max_concurrent, concurrent)
+            # Hold the slot long enough that a second concurrent task would overlap.
+            threading.Event().wait(0.05)
+            with lock:
+                concurrent -= 1
+                processed += 1
+                if processed == 2:
+                    both_done.set()
+
+        with patch('core.indexing._run_indexing_in_thread', side_effect=track):
+            start_indexing_async(1)
+            start_indexing_async(2)
+            assert both_done.wait(timeout=5)
+
+        assert max_concurrent == 1, f'{max_concurrent} indexing tasks ran concurrently'
+
+    def test_processes_in_fifo_order(self, clean_worker):
+        """Queue order is predictable: first queued, first indexed."""
+        order: list[int] = []
+        done = threading.Event()
+
+        def record(doc_id):
+            order.append(doc_id)
+            if len(order) == 4:
+                done.set()
+
+        with patch('core.indexing._run_indexing_in_thread', side_effect=record):
+            for doc_id in (10, 20, 30, 40):
+                start_indexing_async(doc_id)
+            assert done.wait(timeout=5)
+
+        assert order == [10, 20, 30, 40]
+
+    def test_worker_is_daemon(self, clean_worker):
+        """The worker must be a daemon so process exit is never blocked."""
+        with patch('core.indexing._run_indexing_in_thread'):
             start_indexing_async(1)
 
-        assert spawned, 'No thread was started'
-        assert spawned[0].daemon is True
+        assert indexing_module._worker is not None
+        assert indexing_module._worker.daemon is True
 
-    def test_thread_name_contains_doc_id(self):
-        spawned: list[threading.Thread] = []
-        original_start = threading.Thread.start
+    def test_repeated_calls_do_not_spawn_extra_workers(self, clean_worker):
+        """_ensure_worker is idempotent — no second background worker appears."""
+        done = threading.Event()
+        count = 0
 
-        def capture_start(self, *args, **kwargs):
-            spawned.append(self)
-            original_start(self, *args, **kwargs)
+        def record(doc_id):
+            nonlocal count
+            count += 1
+            if count == 5:
+                done.set()
 
-        with (
-            patch('core.indexing._run_indexing_in_thread'),
-            patch.object(threading.Thread, 'start', capture_start),
-        ):
-            start_indexing_async(77)
+        with patch('core.indexing._run_indexing_in_thread', side_effect=record):
+            for doc_id in range(5):
+                start_indexing_async(doc_id)
+            assert done.wait(timeout=5)
 
-        assert '77' in spawned[0].name
+        workers = [t for t in threading.enumerate() if t.name == 'indexing-worker']
+        assert len(workers) == 1, f'expected 1 worker thread, found {len(workers)}'
+
+    def test_reimport_does_not_create_second_worker(self, clean_worker):
+        """Importing the module again must reuse the existing worker."""
+        with patch('core.indexing._run_indexing_in_thread'):
+            start_indexing_async(1)
+            first_worker = indexing_module._worker
+
+            import importlib
+
+            reimported = importlib.import_module('core.indexing')
+            reimported.start_indexing_async(2)
+
+        assert reimported._worker is first_worker
+        workers = [t for t in threading.enumerate() if t.name == 'indexing-worker']
+        assert len(workers) == 1
+
+
+# ---------------------------------------------------------------------------
+# Worker resilience
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerResilience:
+    def test_exception_does_not_stop_next_task(self, clean_worker):
+        """A failing task must not stall the documents queued behind it."""
+        processed: list[int] = []
+        done = threading.Event()
+
+        def flaky(doc_id):
+            if doc_id == 1:
+                raise RuntimeError('embed exploded')
+            processed.append(doc_id)
+            done.set()
+
+        with patch('core.indexing._run_indexing_in_thread', side_effect=flaky):
+            start_indexing_async(1)
+            start_indexing_async(2)
+            assert done.wait(timeout=5)
+
+        assert processed == [2]
+
+    def test_worker_survives_many_failures(self, clean_worker):
+        """Repeated failures must leave the worker alive and consuming."""
+        done = threading.Event()
+
+        def always_fail(doc_id):
+            if doc_id == 99:
+                done.set()
+                return
+            raise ValueError('boom')
+
+        with patch('core.indexing._run_indexing_in_thread', side_effect=always_fail):
+            for doc_id in range(5):
+                start_indexing_async(doc_id)
+            start_indexing_async(99)
+            assert done.wait(timeout=5)
+
+        assert indexing_module._worker.is_alive()
+
+
+# ---------------------------------------------------------------------------
+# Bounded queue
+# ---------------------------------------------------------------------------
+
+
+class TestQueueBackpressure:
+    def test_queue_full_raises(self, clean_worker):
+        """Once the backlog is full, start_indexing_async must refuse fast."""
+        block = threading.Event()
+
+        def blocking(doc_id):
+            block.wait(timeout=10)
+
+        with patch('core.indexing._run_indexing_in_thread', side_effect=blocking):
+            start_indexing_async(0)  # occupies the worker
+            # Fill the queue. The worker holds one item, so this cannot drain.
+            for doc_id in range(1, INDEXING_QUEUE_MAXSIZE + 1):
+                try:
+                    start_indexing_async(doc_id)
+                except IndexingQueueFullError:
+                    break
+
+            with pytest.raises(IndexingQueueFullError):
+                start_indexing_async(999_999)
+
+            block.set()
+
+    def test_queue_maxsize_is_bounded(self):
+        """The queue must never be unbounded."""
+        assert 0 < INDEXING_QUEUE_MAXSIZE < 10_000
+
+
+# ---------------------------------------------------------------------------
+# Shutdown
+# ---------------------------------------------------------------------------
+
+
+class TestShutdown:
+    def test_shutdown_stops_worker(self, clean_worker):
+        with patch('core.indexing._run_indexing_in_thread'):
+            start_indexing_async(1)
+            worker = indexing_module._worker
+
+        shutdown_indexing_worker(timeout=5)
+        assert not worker.is_alive()
+        assert indexing_module._worker is None
+
+    def test_shutdown_without_worker_is_safe(self):
+        """Calling shutdown when nothing is running must not raise."""
+        shutdown_indexing_worker(timeout=1)
+        shutdown_indexing_worker(timeout=1)
+
+    def test_shutdown_is_bounded_by_timeout(self, clean_worker):
+        """A wedged task must not make shutdown hang forever."""
+        block = threading.Event()
+
+        def blocking(doc_id):
+            block.wait(timeout=10)
+
+        try:
+            with patch('core.indexing._run_indexing_in_thread', side_effect=blocking):
+                start_indexing_async(1)
+                threading.Event().wait(0.1)
+                # Worker is stuck in the task; shutdown must still return.
+                shutdown_indexing_worker(timeout=0.5)
+        finally:
+            block.set()
+
+    def test_start_after_shutdown_creates_new_worker(self, clean_worker):
+        """The queue must be usable again after a shutdown."""
+        done = threading.Event()
+
+        with patch('core.indexing._run_indexing_in_thread'):
+            start_indexing_async(1)
+        shutdown_indexing_worker(timeout=5)
+
+        with patch('core.indexing._run_indexing_in_thread', side_effect=lambda d: done.set()):
+            start_indexing_async(2)
+            assert done.wait(timeout=5)
+
+
+# ---------------------------------------------------------------------------
+# Module contract
+# ---------------------------------------------------------------------------
+
+
+class TestQueueContract:
+    def test_queue_is_a_bounded_queue(self, clean_worker):
+        with patch('core.indexing._run_indexing_in_thread'):
+            start_indexing_async(1)
+        assert isinstance(indexing_module._queue, queue.Queue)
+        assert indexing_module._queue.maxsize == INDEXING_QUEUE_MAXSIZE
 
 
 # ---------------------------------------------------------------------------

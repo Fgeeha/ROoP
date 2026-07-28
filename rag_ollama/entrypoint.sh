@@ -58,13 +58,39 @@ echo "Syncing ChromaDB metadata..."
 python manage.py sync_chroma_metadata 2>/dev/null || true
 
 echo "=== ROoP - Ready ==="
-echo "Starting Gunicorn on port 8000..."
 
-# Start Gunicorn
+# -----------------------------------------------------------------------------
+# Gunicorn concurrency
+#
+# ChromaDB runs embedded (PersistentClient) inside this process, and the
+# indexing worker is a per-process thread.  Both assume ONE process:
+#   - several processes would each hold their own copy of the HNSW index and
+#     write to the same persist directory concurrently;
+#   - each would run its own indexing worker, defeating the serialization.
+#
+# Scale with threads, not workers.  Do not raise GUNICORN_WORKERS above 1
+# unless ChromaDB has been moved to server mode first.
+# -----------------------------------------------------------------------------
+GUNICORN_WORKERS="${GUNICORN_WORKERS:-1}"
+GUNICORN_THREADS="${GUNICORN_THREADS:-4}"
+GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-300}"
+GUNICORN_GRACEFUL_TIMEOUT="${GUNICORN_GRACEFUL_TIMEOUT:-30}"
+
+if [ "$GUNICORN_WORKERS" -ne 1 ]; then
+    echo "WARNING: GUNICORN_WORKERS=${GUNICORN_WORKERS} with embedded ChromaDB."
+    echo "         Multiple processes may corrupt the vector index and will run"
+    echo "         one indexing worker each. Set GUNICORN_WORKERS=1."
+fi
+
+echo "Starting Gunicorn on port 8000 (workers=${GUNICORN_WORKERS}, threads=${GUNICORN_THREADS})..."
+
 exec gunicorn rag_project.wsgi:application \
     --bind 0.0.0.0:8000 \
-    --workers 3 \
-    --timeout 300 \
+    --workers "$GUNICORN_WORKERS" \
+    --threads "$GUNICORN_THREADS" \
+    --worker-class gthread \
+    --timeout "$GUNICORN_TIMEOUT" \
+    --graceful-timeout "$GUNICORN_GRACEFUL_TIMEOUT" \
     --access-logfile - \
     --error-logfile - \
     --log-level info

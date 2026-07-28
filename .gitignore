@@ -10,8 +10,10 @@ build/
 db.sqlite3
 *.sqlite3
 staticfiles/
-media/documents/*
-!media/documents/.gitkeep
+# Unanchored so it also covers rag_ollama/media/documents/ — user documents
+# must never be committed.
+**/media/documents/*
+!**/media/documents/.gitkeep
 logs/*.log
 htmlcov/
 coverage.xml
@@ -37,3 +39,5 @@ Thumbs.db
 # Linter & Tests cache
 .ruff_cache/
 .pytest_cache/
+
+rag_ollama/logs/

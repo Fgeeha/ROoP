@@ -6,7 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
-from core.views.helpers import FileValidationError, validate_and_save_upload  # noqa: E402
+from core.views.helpers import (  # noqa: E402
+    FileTooLargeError,
+    FileValidationError,
+    validate_and_save_upload,
+)
+
+# Small limit used throughout these tests so no real multi-MB file is created.
+TEST_MAX_UPLOAD_SIZE = 1024
 
 # ---------------------------------------------------------------------------
 # Minimal file headers for each supported type
@@ -71,6 +78,7 @@ class TestValidateAndSaveUpload:
             patch('core.views.helpers.settings') as mock_settings,
         ):
             mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
             file_path, ext, unique_name = validate_and_save_upload(f)
         return file_path, ext, unique_name
 
@@ -119,6 +127,7 @@ class TestValidateAndSaveUpload:
             patch('core.views.helpers.settings') as mock_settings,
         ):
             mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
             with pytest.raises(FileValidationError, match='exe'):
                 validate_and_save_upload(f)
 
@@ -129,6 +138,7 @@ class TestValidateAndSaveUpload:
             patch('core.views.helpers.settings') as mock_settings,
         ):
             mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
             with pytest.raises(FileValidationError):
                 validate_and_save_upload(f)
 
@@ -142,6 +152,7 @@ class TestValidateAndSaveUpload:
             patch('core.views.helpers.settings') as mock_settings,
         ):
             mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
             with pytest.raises(FileValidationError, match='MIME'):
                 validate_and_save_upload(f)
 
@@ -153,6 +164,7 @@ class TestValidateAndSaveUpload:
             patch('core.views.helpers.settings') as mock_settings,
         ):
             mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
             with pytest.raises(FileValidationError, match='MIME'):
                 validate_and_save_upload(f)
 
@@ -171,3 +183,109 @@ class TestValidateAndSaveUpload:
             fp, _, _ = self._call('same.pdf', PDF_HEADER, 'application/pdf', tmp_path)
             paths.add(fp)
         assert len(paths) == 3
+
+
+# ---------------------------------------------------------------------------
+# MAX_UPLOAD_SIZE enforcement
+# ---------------------------------------------------------------------------
+
+
+def _pdf_of_size(size: int) -> bytes:
+    """Build PDF-looking content of exactly `size` bytes."""
+    body = PDF_HEADER + b'\n' + b'A' * size
+    return body[:size]
+
+
+class TestUploadSizeLimit:
+    """settings.MAX_UPLOAD_SIZE is a hard limit, checked before indexing starts."""
+
+    def _call(self, content: bytes, tmp_path, declared_size=None, max_size=TEST_MAX_UPLOAD_SIZE):
+        f = _make_file('big.pdf', content)
+        if declared_size is not None:
+            f.size = declared_size
+        with (
+            patch('core.views.helpers.magic.from_buffer', return_value='application/pdf'),
+            patch('core.views.helpers.settings') as mock_settings,
+        ):
+            mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = max_size
+            return validate_and_save_upload(f)
+
+    def test_under_limit_accepted(self, tmp_path):
+        file_path, ext, _ = self._call(_pdf_of_size(TEST_MAX_UPLOAD_SIZE - 1), tmp_path)
+        assert ext == 'pdf'
+        assert os.path.getsize(file_path) == TEST_MAX_UPLOAD_SIZE - 1
+
+    def test_exactly_at_limit_accepted(self, tmp_path):
+        """The limit is inclusive — a file of exactly MAX_UPLOAD_SIZE passes."""
+        file_path, ext, _ = self._call(_pdf_of_size(TEST_MAX_UPLOAD_SIZE), tmp_path)
+        assert ext == 'pdf'
+        assert os.path.getsize(file_path) == TEST_MAX_UPLOAD_SIZE
+
+    def test_over_limit_rejected(self, tmp_path):
+        with pytest.raises(FileTooLargeError):
+            self._call(_pdf_of_size(TEST_MAX_UPLOAD_SIZE + 1), tmp_path)
+
+    def test_too_large_is_a_file_validation_error(self, tmp_path):
+        """FileTooLargeError must stay catchable as FileValidationError."""
+        with pytest.raises(FileValidationError):
+            self._call(_pdf_of_size(TEST_MAX_UPLOAD_SIZE + 1), tmp_path)
+
+    def test_understated_size_still_rejected(self, tmp_path):
+        """A lying Content-Length must not smuggle an oversized file through."""
+        oversized = _pdf_of_size(TEST_MAX_UPLOAD_SIZE * 3)
+        with pytest.raises(FileTooLargeError):
+            self._call(oversized, tmp_path, declared_size=10)
+
+    def test_partial_file_removed_when_streaming_limit_hit(self, tmp_path):
+        """No truncated leftovers on disk after a streamed rejection."""
+        upload_dir = tmp_path / 'documents'
+        oversized = _pdf_of_size(TEST_MAX_UPLOAD_SIZE * 3)
+        with pytest.raises(FileTooLargeError):
+            self._call(oversized, tmp_path, declared_size=10)
+
+        leftovers = list(upload_dir.glob('*')) if upload_dir.exists() else []
+        assert leftovers == [], f'partial file left behind: {leftovers}'
+
+    def test_size_checked_regardless_of_extension(self, tmp_path):
+        """Rejection happens on size before extension is even considered."""
+        f = _make_file('huge.exe', _pdf_of_size(TEST_MAX_UPLOAD_SIZE + 1))
+        with (
+            patch('core.views.helpers.magic.from_buffer', return_value='application/x-dosexec'),
+            patch('core.views.helpers.settings') as mock_settings,
+        ):
+            mock_settings.MEDIA_ROOT = str(tmp_path)
+            mock_settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+            with pytest.raises(FileTooLargeError):
+                validate_and_save_upload(f)
+
+    def test_message_is_user_facing(self, tmp_path):
+        """No paths or internals in the message shown to the user."""
+        with pytest.raises(FileTooLargeError) as exc:
+            self._call(_pdf_of_size(TEST_MAX_UPLOAD_SIZE + 1), tmp_path)
+        message = str(exc.value)
+        assert 'МБ' in message
+        assert str(tmp_path) not in message
+
+
+class TestUploadSettings:
+    """Configuration contract for the two independent upload knobs."""
+
+    def test_max_upload_size_is_int(self):
+        from django.conf import settings as django_settings
+
+        assert isinstance(django_settings.MAX_UPLOAD_SIZE, int)
+        assert django_settings.MAX_UPLOAD_SIZE > 0
+
+    def test_file_upload_memory_threshold_is_small(self):
+        """Uploads must spill to a temp file well below the hard limit."""
+        from django.conf import settings as django_settings
+
+        assert isinstance(django_settings.FILE_UPLOAD_MAX_MEMORY_SIZE, int)
+        assert django_settings.FILE_UPLOAD_MAX_MEMORY_SIZE <= 2621440
+        assert django_settings.FILE_UPLOAD_MAX_MEMORY_SIZE < django_settings.MAX_UPLOAD_SIZE
+
+    def test_max_upload_size_reads_environment(self, monkeypatch):
+        """MAX_UPLOAD_SIZE comes from the environment as an integer byte count."""
+        monkeypatch.setenv('MAX_UPLOAD_SIZE', '12345')
+        assert int(os.getenv('MAX_UPLOAD_SIZE', '26214400')) == 12345

@@ -1,10 +1,24 @@
 """Tests for REST API endpoints."""
 
+from unittest.mock import patch
+
 import pytest
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
+from core.indexing import IndexingQueueFullError
 from core.models import ChatMessage, Document, UserProfile
+
+# Small limit so tests never build a real multi-MB payload.
+TEST_MAX_UPLOAD_SIZE = 1024
+PDF_HEADER = b'%PDF-1.4\n%%EOF\n'
+
+
+def _pdf_upload(size: int, name: str = 'doc.pdf') -> SimpleUploadedFile:
+    """Build a PDF-looking upload of exactly `size` bytes."""
+    content = (PDF_HEADER + b'A' * size)[:size]
+    return SimpleUploadedFile(name, content, content_type='application/pdf')
 
 
 @pytest.fixture
@@ -119,3 +133,94 @@ class TestDocDeleteAPI:
     def test_delete_nonexistent_document(self, api_client, db):
         resp = api_client.delete('/api/docs/99999/')
         assert resp.status_code == 404
+
+
+# ============================================================================
+# Upload API — size limit and queue backpressure
+# ============================================================================
+
+
+@pytest.mark.django_db
+class TestUploadAPI:
+    def test_upload_under_limit_returns_202(self, api_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.api.start_indexing_async') as mock_start:
+            resp = api_client.post(
+                '/api/upload/',
+                {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE - 1)},
+                format='multipart',
+            )
+
+        assert resp.status_code == 202
+        mock_start.assert_called_once()
+
+    def test_upload_exactly_at_limit_returns_202(self, api_client, settings):
+        """The limit is inclusive."""
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.api.start_indexing_async') as mock_start:
+            resp = api_client.post(
+                '/api/upload/',
+                {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE)},
+                format='multipart',
+            )
+
+        assert resp.status_code == 202
+        mock_start.assert_called_once()
+
+    def test_upload_over_limit_returns_413(self, api_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.api.start_indexing_async') as mock_start:
+            resp = api_client.post(
+                '/api/upload/',
+                {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE + 500)},
+                format='multipart',
+            )
+
+        assert resp.status_code == 413
+        assert 'error' in resp.json()
+        mock_start.assert_not_called()
+
+    def test_over_limit_creates_no_document(self, api_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.api.start_indexing_async'):
+            api_client.post(
+                '/api/upload/',
+                {'file': _pdf_upload(TEST_MAX_UPLOAD_SIZE + 500)},
+                format='multipart',
+            )
+
+        assert Document.objects.count() == 0
+
+    def test_bad_extension_still_returns_400(self, api_client, settings):
+        """Format rejection must stay 400 — only size maps to 413."""
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        upload = SimpleUploadedFile('virus.exe', b'MZ\x90\x00', content_type='application/octet-stream')
+        with patch('core.views.api.start_indexing_async') as mock_start:
+            resp = api_client.post('/api/upload/', {'file': upload}, format='multipart')
+
+        assert resp.status_code == 400
+        mock_start.assert_not_called()
+
+    def test_queue_full_returns_503(self, api_client, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.api.start_indexing_async', side_effect=IndexingQueueFullError('full')):
+            resp = api_client.post('/api/upload/', {'file': _pdf_upload(100)}, format='multipart')
+
+        assert resp.status_code == 503
+        assert 'error' in resp.json()
+
+    def test_queue_full_marks_document_error(self, api_client, settings):
+        """The document must not be left waiting forever in pending."""
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        with patch('core.views.api.start_indexing_async', side_effect=IndexingQueueFullError('full')):
+            api_client.post('/api/upload/', {'file': _pdf_upload(100)}, format='multipart')
+
+        document = Document.objects.get()
+        assert document.status == Document.Status.ERROR
+        assert document.error_message
+
+    def test_upload_requires_authentication(self, db, settings):
+        settings.MAX_UPLOAD_SIZE = TEST_MAX_UPLOAD_SIZE
+        client = APIClient()
+        resp = client.post('/api/upload/', {'file': _pdf_upload(100)}, format='multipart')
+        assert resp.status_code in (401, 403)

@@ -23,8 +23,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-roop}
       POSTGRES_USER: ${POSTGRES_USER:-roop}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-roop}
-    ports:
-      - "5432:5432"
+    # No host port: Django reaches PostgreSQL as "postgres" on the internal
+    # network.  For host access during development use docker-compose.dev-ports.yml.
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-roop} -d ${POSTGRES_DB:-roop}"]
@@ -49,6 +49,10 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - CHROMA_PERSIST_DIR=/app/chroma_data
+      # Embedded ChromaDB requires a single process — scale with threads.
+      # (Ollama runs elsewhere in this mode, so no OLLAMA_* limits here.)
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-1}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-4}
       - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-admin}
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
       - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@localhost}

@@ -55,9 +55,9 @@ class DocumentUploadSerializer(serializers.Serializer):
         ext = '.' + value.name.rsplit('.', 1)[-1].lower() if '.' in value.name else ''
         if ext not in allowed_types:
             raise serializers.ValidationError(f'Неподдерживаемый формат файла. Допустимые: {", ".join(allowed_types)}')
-        max_size = 50 * 1024 * 1024  # 50MB
-        if value.size > max_size:
-            raise serializers.ValidationError('Файл слишком большой. Максимум: 50MB')
+        # Size is NOT checked here: validate_and_save_upload() enforces
+        # settings.MAX_UPLOAD_SIZE so the view can answer 413 rather than the
+        # 400 a serializer ValidationError would produce.
         return value
 
 

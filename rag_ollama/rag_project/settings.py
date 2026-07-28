@@ -182,8 +182,23 @@ if '*' in ALLOWED_HOSTS:
     CSRF_TRUSTED_ORIGINS = ['http://*', 'https://*']
 
 # File upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+#
+# Two different knobs — do not confuse them:
+#
+#   FILE_UPLOAD_MAX_MEMORY_SIZE — Django's buffering threshold.  An upload
+#       larger than this is streamed to a temporary file instead of being held
+#       entirely in RAM.  Keeping it low is what bounds memory during upload.
+#   MAX_UPLOAD_SIZE — the hard, user-facing limit.  Enforced in
+#       core.views.helpers.validate_and_save_upload before indexing starts.
+#
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5 MiB — spill to a temp file beyond this
+# Applies to the non-file part of a request body; file uploads are excluded.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+
+# Hard limit for a single uploaded document, in bytes.  Default 25 MiB, chosen
+# for a 16 GB machine: extraction + chunking + embeddings peak at several times
+# the source size, and indexing is serialized to one document at a time.
+MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', '26214400'))  # 25 MiB
 
 # LLM Backend: "ollama" (direct) or "openwebui" (via Open WebUI OpenAI-compatible API)
 LLM_BACKEND = os.getenv('LLM_BACKEND', 'ollama').lower()

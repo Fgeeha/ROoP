@@ -9,6 +9,15 @@
 - File uploads now validated by MIME type (magic bytes) in addition to file extension, rejecting mismatched or binary content.
 - Superuser password removed from docker-compose files; read from `DJANGO_SUPERUSER_PASSWORD` env var. Entrypoint warns and skips creation if unset.
 
+### Stability on low-memory machines (16 GB)
+
+- Document indexing serialized: a single long-lived worker thread consumes a bounded queue (max 100 documents) instead of spawning one thread per upload. Concurrent uploads no longer hold several documents' text, chunks and embedding vectors in memory at once. Queue overflow returns `503`; the file is kept and the document marked as errored so it can be re-indexed later.
+- Gunicorn switched from 3 worker processes to `1 worker + 4 threads` (`GUNICORN_WORKERS`, `GUNICORN_THREADS`). Embedded ChromaDB (`PersistentClient`) is per-process: multiple processes each held their own copy of the HNSW index and wrote to the same persist directory concurrently.
+- `MAX_UPLOAD_SIZE` setting added (default 25 MiB). Enforced before indexing starts, independently of file extension, and re-checked while streaming to disk so an understated `Content-Length` cannot bypass it. REST API answers `413`; UI shows a plain message.
+- `FILE_UPLOAD_MAX_MEMORY_SIZE` lowered from 50 MB to 2.5 MiB so larger uploads spill to a temporary file instead of being buffered entirely in RAM.
+- Ollama resource limits set in the GPU and CPU compose files: `OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=5m`, `OLLAMA_CONTEXT_LENGTH=4096`. All overridable via `.env`.
+- PostgreSQL host port no longer published in the standard compose configurations; Django reaches it over the internal Docker network. Host access for development is available via the new `docker-compose.dev-ports.yml` override.
+
 ### Performance
 
 - Document indexing moved to a background daemon thread; HTTP response returns immediately after file upload.
