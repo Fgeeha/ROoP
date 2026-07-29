@@ -1,30 +1,55 @@
-FROM python:3.12-slim
+# =============================================================================
+# Build stage — resolves dependencies into a self-contained virtualenv.
+#
+# Poetry and its own dependency tree (dulwich, requests, ...) stay in this
+# stage: they are build tooling, and shipping them in the runtime image only
+# widened its vulnerability surface without being used at run time.
+# =============================================================================
+FROM python:3.12-slim AS builder
 
-# System deps (libpq-dev for PostgreSQL, libmagic1 for file type detection, antiword for .doc files)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagic1 \
-    libpq-dev \
     curl \
-    antiword \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-ENV POETRY_VERSION=1.8.4 \
+# virtualenvs.in-project puts the environment at /app/.venv, which is the only
+# thing the runtime stage copies.  A virtualenv is not relocatable — the console
+# scripts in bin/ hardcode their interpreter path — so the runtime keeps it at
+# exactly the same /app/.venv.
+ENV POETRY_VERSION=2.3.3 \
     POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -sSL https://install.python-poetry.org | python3 - \
-    && ln -s /opt/poetry/bin/poetry /usr/local/bin/poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock* ./
+RUN /opt/poetry/bin/poetry install --only main --no-root \
+    && rm -rf /root/.cache
+
+# =============================================================================
+# Runtime stage
+# =============================================================================
+FROM python:3.12-slim
+
+# libmagic1 — file type detection by magic bytes
+# libpq5   — PostgreSQL client library (runtime only, no headers needed)
+# antiword — .doc extraction
+# curl     — container healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
+    libpq5 \
+    antiword \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-# Install dependencies (cached layer)
-COPY pyproject.toml poetry.lock* ./
-RUN poetry install --only main --no-root \
-    && rm -rf /root/.cache
-
-# Copy project
+# Copy project. `.venv/` is in .dockerignore, so this cannot clobber the
+# environment copied above.
 COPY . .
 
 # Create directories

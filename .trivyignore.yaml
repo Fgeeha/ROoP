@@ -1,0 +1,27 @@
+# Vulnerabilities accepted for the ROoP image, with an expiry date so that an
+# exception cannot quietly become permanent.
+#
+# Anything listed here must be unreachable in this image, not merely
+# inconvenient to fix. Everything else is fixed by upgrading the dependency.
+
+vulnerabilities:
+  # starlette arrives as a transitive dependency of chromadb -> fastapi, and
+  # fastapi still caps it at <1.0.0, so 1.1.0 / 1.3.1 are unreachable without
+  # dropping chromadb.
+  #
+  # Neither starlette nor fastapi is ever imported: ROoP uses ChromaDB through
+  # the embedded PersistentClient and runs no ASGI application. Verified with
+  # `import chromadb` -> 'starlette' not in sys.modules.
+  #
+  # Revisit once fastapi allows starlette >= 1.0.
+  - id: CVE-2026-48818
+    statement: >-
+      SSRF via UNC paths in StaticFiles. No starlette application runs in this
+      image; StaticFiles is never instantiated.
+    expired_at: 2027-02-01
+
+  - id: CVE-2026-54283
+    statement: >-
+      request.form() limits ignored for urlencoded bodies. No starlette
+      application runs in this image; no request ever reaches starlette.
+    expired_at: 2027-02-01

@@ -9,8 +9,15 @@
 - File uploads now validated by MIME type (magic bytes) in addition to file extension, rejecting mismatched or binary content.
 - Superuser password removed from docker-compose files; read from `DJANGO_SUPERUSER_PASSWORD` env var. Entrypoint warns and skips creation if unset.
 
+### Security
+
+- Dependencies with known HIGH advisories upgraded: Django 5.2.11 → 5.2.16, pillow 12.1.0 → 12.3.0, cryptography 46.0.4 → 49.0.0, lxml 6.0.2 → 6.1.1, urllib3 2.6.3 → 2.7.0. All within the existing version constraints; no application change was needed.
+- Dockerfile split into build and runtime stages. Poetry and its own dependency tree (dulwich, requests, …) were being shipped in the runtime image, where they are never executed but still counted against it — `dulwich` and `poetry` each carried a HIGH advisory. The runtime now copies only the resolved virtualenv, and `libpq-dev` was narrowed to `libpq5`. Image size drops from ~1.1 GB to 545 MB.
+- Trivy findings on the image: 25 HIGH → 2, both in starlette, which reaches the image only through `chromadb → fastapi` and is never imported (ChromaDB runs as an embedded `PersistentClient`, no ASGI application). fastapi still caps starlette at `<1.0.0`, so the fixed versions are unreachable; both are recorded in `.trivyignore.yaml` with a rationale and an expiry date of 2027-02-01.
+
 ### CI/CD
 
+- The release job no longer treats the Trivy verdict as a gate. The scan still runs and reports on a tag, but the image is already published by the time it finishes, and an image with no matching release entry is worse than a release carrying a known finding.
 - Images are now published to GitHub Packages (`ghcr.io/fgeeha/roop`) alongside Docker Hub. One build feeds both registries, so the tags are identical.
 - Pushing a `v*` tag builds and scans the image, then creates a GitHub Release with generated release notes and `docker pull` commands. Tags carrying a suffix (`v1.2.0-rc1`) are published as pre-releases. Version tags (`1.2.0`, `1.2`) are added to the images. The CD workflow previously ran only after CI on `Master`; tags never reached it, because CI listens on branches only.
 
