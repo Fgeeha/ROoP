@@ -9,6 +9,11 @@
 - File uploads now validated by MIME type (magic bytes) in addition to file extension, rejecting mismatched or binary content.
 - Superuser password removed from docker-compose files; read from `DJANGO_SUPERUSER_PASSWORD` env var. Entrypoint warns and skips creation if unset.
 
+### CI/CD
+
+- Images are now published to GitHub Packages (`ghcr.io/fgeeha/roop`) alongside Docker Hub. One build feeds both registries, so the tags are identical.
+- Pushing a `v*` tag builds and scans the image, then creates a GitHub Release with generated release notes and `docker pull` commands. Tags carrying a suffix (`v1.2.0-rc1`) are published as pre-releases. Version tags (`1.2.0`, `1.2`) are added to the images. The CD workflow previously ran only after CI on `Master`; tags never reached it, because CI listens on branches only.
+
 ### Added
 
 - Share links now expire and can be revoked. `SHARE_LINK_TTL_DAYS` (default 30, `0` = unlimited) sets the lifetime of a newly issued link; `expires_at` was already on the model but was never filled in, so every link issued so far is permanent. The profile page lists active links with their expiry and a revoke button (`POST /share/{token}/revoke/`, owner only — a foreign token answers `404`, not `403`, so revocation cannot be used to probe for valid tokens). An expired or revoked link is no longer handed back by "Поделиться": a new one is issued instead of a URL that answers `410`.

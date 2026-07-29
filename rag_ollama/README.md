@@ -445,6 +445,9 @@ GUNICORN_THREADS=4
 # API key (только заголовок Authorization: Api-Key <key>)
 API_KEY=your-secret-api-key-change-me
 
+# Публичные ссылки: срок жизни новой ссылки в днях, 0 = бессрочно
+SHARE_LINK_TTL_DAYS=30
+
 # Logging
 LOG_LEVEL=INFO
 ```

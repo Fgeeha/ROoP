@@ -5,22 +5,30 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [Master]
+  # Tags do not trigger CI (it listens on branches only), so a tag build starts
+  # here directly.  A release tag is expected to point at a commit that already
+  # passed CI on Master.
+  push:
+    tags: ["v*"]
 
 concurrency:
-  group: cd-${{ github.event.workflow_run.head_branch }}
+  group: cd-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: true
 
 env:
   DOCKERHUB_NAMESPACE: fgeeha
   IMAGE_NAME: roop
+  # GitHub Packages rejects uppercase image names and the repository is
+  # "Fgeeha/ROoP", so the path is spelled out instead of using github.repository.
+  GHCR_IMAGE: ghcr.io/fgeeha/roop
 
 jobs:
   # ----------------------------------------------------------
-  # Build & push Docker image to Docker Hub
+  # Build & push Docker image to Docker Hub and GitHub Packages
   # ----------------------------------------------------------
   build-and-push:
-    name: Build & Push to Docker Hub
-    if: github.event.workflow_run.conclusion == 'success'
+    name: Build & Push
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,13 +38,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Log in to GitHub Packages
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -45,11 +60,16 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}
+          # One build, both registries: every tag below is produced for each image.
+          images: |
+            ${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}
+            ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=latest
             type=sha,prefix=,format=short
             type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -69,7 +89,7 @@ jobs:
     name: Trivy image scan
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Scan image
@@ -80,6 +100,57 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: 1
           ignore-unfixed: true
+
+  # ----------------------------------------------------------
+  # GitHub Release — tag pushes only, after the image is built and scanned
+  # ----------------------------------------------------------
+  release:
+    name: GitHub Release
+    needs: [build-and-push, trivy-scan]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compose release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo '### Docker images'
+            echo
+            echo '```bash'
+            echo "docker pull ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${GITHUB_REF_NAME}"
+            echo "docker pull ${GHCR_IMAGE}:${GITHUB_REF_NAME}"
+            echo '```'
+            echo
+            # Notes are generated through the API rather than by
+            # `gh release create --generate-notes` so that the image block
+            # stays above the commit list.
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${GITHUB_REF_NAME}" --jq .body
+          } > release-notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # A tag such as v1.2.0-rc1 is published as a pre-release.
+          case "${GITHUB_REF_NAME}" in
+            *-*) prerelease=--prerelease ;;
+            *)   prerelease= ;;
+          esac
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            ${prerelease}
 
   # ----------------------------------------------------------
   # Telegram notification (optional)
@@ -98,9 +169,10 @@ jobs:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
             Docker image pushed successfully
-            Image: ${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+            Docker Hub: ${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+            GitHub Packages: ${{ env.GHCR_IMAGE }}:latest
             Trivy scan: PASSED
             Repo: ${{ github.repository }}
-            Branch: ${{ github.event.workflow_run.head_branch }}
-            SHA: ${{ github.event.workflow_run.head_sha }}
-            Commit: https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha }}
+            Ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+            SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+            Commit: https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha || github.sha }}

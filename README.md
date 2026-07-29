@@ -1,8 +1,41 @@
 # ROoP — Rag-Ollama-On-Premises
 
 [![CI](https://github.com/Fgeeha/ROoP/actions/workflows/ci.yml/badge.svg)](https://github.com/Fgeeha/ROoP/actions/workflows/ci.yml)
+[![CD](https://github.com/Fgeeha/ROoP/actions/workflows/cd.yml/badge.svg)](https://github.com/Fgeeha/ROoP/actions/workflows/cd.yml)
 
 100% локальная RAG-система: Django + ChromaDB + Ollama. Никаких облаков, никаких внешних API.
+
+---
+
+## Готовые образы
+
+Каждая успешная сборка ветки `Master` публикуется в два реестра — Docker Hub и GitHub Packages. Содержимое одинаковое, выбирайте любой:
+
+```bash
+docker pull fgeeha/roop:latest          # Docker Hub
+docker pull ghcr.io/fgeeha/roop:latest  # GitHub Packages
+```
+
+Доступные теги:
+
+| Тег | Что это |
+|---|---|
+| `latest` | Последняя успешная сборка `Master` |
+| `<short-sha>` | Конкретный коммит, например `eefcb16` |
+| `1.2.0`, `1.2` | Версия из git-тега `v1.2.0` (публикуется только при выпуске релиза) |
+
+Для production закрепляйтесь на теге версии или на sha, а не на `latest`.
+
+### Релизы
+
+Публикация релиза выполняется отправкой тега:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+Тег запускает сборку образов, сканирование Trivy и, если оба шага прошли, создание [GitHub Release](https://github.com/Fgeeha/ROoP/releases) с автоматически собранным списком изменений и командами `docker pull`. Тег с суффиксом (`v1.2.0-rc1`) публикуется как pre-release.
 
 ---
 
