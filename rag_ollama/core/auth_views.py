@@ -12,12 +12,14 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.html import strip_tags
 
 from .forms import LoginForm, ProfileForm, RegistrationForm
-from .models import UserProfile
+from .models import SharedLink, UserProfile
 
 logger = logging.getLogger('core')
 
@@ -170,7 +172,18 @@ def profile_view(request):
         {
             'form': form,
             'profile': profile,
+            'shared_links': _active_shared_links(user),
         },
+    )
+
+
+def _active_shared_links(user):
+    """Share links the user can still revoke: active and not past their expiry."""
+    return (
+        SharedLink.objects.filter(user=user, is_active=True)
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
+        .select_related('document')
+        .order_by('-created_at')
     )
 
 

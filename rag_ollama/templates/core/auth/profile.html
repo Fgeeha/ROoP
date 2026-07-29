@@ -107,6 +107,47 @@
             </div>
         </div>
 
+        <!-- Public share links -->
+        <div class="profile-card">
+            <h2>Публичные ссылки</h2>
+            <p class="profile-card-desc">
+                Ссылки открываются без входа в систему. Отзовите ссылку, если она больше не нужна.
+            </p>
+
+            {% if shared_links %}
+            <div class="profile-info-list">
+                {% for link in shared_links %}
+                <div class="profile-info-row">
+                    <span class="profile-info-label">
+                        {% if link.share_type == 'document' %}
+                            Документ: {{ link.document.original_filename|default:"(удалён)" }}
+                        {% else %}
+                            История чата
+                        {% endif %}
+                    </span>
+                    <span>
+                        Создана {{ link.created_at|date:"d.m.Y" }},
+                        {% if link.expires_at %}
+                            действует до {{ link.expires_at|date:"d.m.Y H:i" }}
+                        {% else %}
+                            бессрочная
+                        {% endif %}
+                        <form method="post" action="{% url 'core:revoke_share' link.token %}" style="display: inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger"
+                                    onclick="return confirm('Отозвать ссылку? Она перестанет открываться.')">
+                                Отозвать
+                            </button>
+                        </form>
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p>Активных публичных ссылок нет.</p>
+            {% endif %}
+        </div>
+
         <!-- Account info -->
         <div class="profile-card">
             <h2>Информация об аккаунте</h2>

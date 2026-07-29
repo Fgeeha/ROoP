@@ -235,6 +235,11 @@ SEARCH_K = int(os.getenv('SEARCH_K', '6'))
 # 0.0 = no filtering; 0.20 = conservative (drops clearly irrelevant chunks).
 SEARCH_RELEVANCE_THRESHOLD = float(os.getenv('SEARCH_RELEVANCE_THRESHOLD', '0.20'))
 
+# SHARE_LINK_TTL_DAYS: lifetime of a newly issued public share link, in days.
+# A public link needs no authentication, so an unlimited one keeps a chat or a
+# document readable by anyone who ever saw the URL.  0 = links never expire.
+SHARE_LINK_TTL_DAYS = int(os.getenv('SHARE_LINK_TTL_DAYS', '30'))
+
 # API key for external API access
 API_KEY = os.getenv('API_KEY', 'your-secret-api-key-change-me')
 

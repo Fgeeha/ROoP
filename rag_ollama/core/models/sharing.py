@@ -3,9 +3,12 @@ SharedLink model for public read-only access to chat or documents.
 """
 
 import secrets
+from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from .document import Document
@@ -68,6 +71,50 @@ class SharedLink(models.Model):
     @staticmethod
     def generate_token():
         return secrets.token_urlsafe(32)
+
+    @staticmethod
+    def default_expiry():
+        """Expiry for a newly issued link, or None when SHARE_LINK_TTL_DAYS <= 0."""
+        days = settings.SHARE_LINK_TTL_DAYS
+        if days <= 0:
+            return None
+        return timezone.now() + timedelta(days=days)
+
+    @classmethod
+    def issue(cls, user, share_type, document=None):
+        """
+        Return a usable share link for this target, creating one if needed.
+
+        An existing link is reused only while it is still valid.  Handing back
+        a revoked or expired one would give the user a URL that answers 410.
+        """
+        link = (
+            cls.objects.filter(
+                user=user,
+                share_type=share_type,
+                document=document,
+                is_active=True,
+            )
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
+            .order_by('-created_at')
+            .first()
+        )
+        if link is not None:
+            return link
+
+        return cls.objects.create(
+            user=user,
+            share_type=share_type,
+            document=document,
+            token=cls.generate_token(),
+            expires_at=cls.default_expiry(),
+        )
+
+    def revoke(self):
+        """Deactivate the link. Idempotent."""
+        if self.is_active:
+            self.is_active = False
+            self.save(update_fields=['is_active'])
 
     @property
     def is_valid(self):

@@ -11,6 +11,7 @@
 
 ### Added
 
+- Share links now expire and can be revoked. `SHARE_LINK_TTL_DAYS` (default 30, `0` = unlimited) sets the lifetime of a newly issued link; `expires_at` was already on the model but was never filled in, so every link issued so far is permanent. The profile page lists active links with their expiry and a revoke button (`POST /share/{token}/revoke/`, owner only — a foreign token answers `404`, not `403`, so revocation cannot be used to probe for valid tokens). An expired or revoked link is no longer handed back by "Поделиться": a new one is issued instead of a URL that answers `410`.
 - Document re-indexing. `POST /api/docs/{id}/reindex/`, a "↻" button in the document list, and `manage.py reindex_documents` (`--status`, `--id`, `--dry-run`) re-run indexing from the file already on the server. Previously a document that failed — full queue, Ollama unavailable, OOM-kill, timeout — could only be fixed by deleting it and uploading the file again. Chunks and vectors from the previous attempt are dropped first, so a re-index cannot duplicate the index. Answers `409` when the document is already queued or its file is gone, `503` when the backlog is full. The management command indexes synchronously and requires the web service to be stopped: embedded ChromaDB allows one writer.
 
 ### Stability on low-memory machines (16 GB)

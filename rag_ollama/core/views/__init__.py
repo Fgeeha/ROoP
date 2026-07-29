@@ -32,7 +32,7 @@ from .htmx import (
 )
 
 # Sharing
-from .sharing import create_share_chat, create_share_document, shared_view
+from .sharing import create_share_chat, create_share_document, revoke_share, shared_view
 from .ui import docs_view, index_view
 
 __all__ = [
@@ -52,6 +52,7 @@ __all__ = [
     # Sharing
     'create_share_chat',
     'create_share_document',
+    'revoke_share',
     'shared_view',
     # API
     'api_upload',

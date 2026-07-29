@@ -46,6 +46,7 @@ urlpatterns = [
     # =========================================================================
     path('share/chat/', login_required(views.create_share_chat), name='share_chat'),
     path('share/doc/<int:doc_id>/', login_required(views.create_share_document), name='share_document'),
+    path('share/<str:token>/revoke/', login_required(views.revoke_share), name='revoke_share'),
     path('s/<str:token>/', views.shared_view, name='shared_view'),
     # =========================================================================
     # REST API Endpoints (auth handled by DRF permissions)
