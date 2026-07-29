@@ -11,6 +11,7 @@
 
 ### Stability on low-memory machines (16 GB)
 
+- `RAGPipeline` singleton initialisation made thread-safe (`threading.RLock`, double-checked locking). With Gunicorn now running one process and several threads, two concurrent requests on a cold start could each build a `chromadb.PersistentClient` against the same persist directory. The instance is published only after a successful initialisation, so a pipeline whose ChromaDB client failed to start no longer becomes the process-wide singleton; `_initialize()` is idempotent.
 - Document indexing serialized: a single long-lived worker thread consumes a bounded queue (max 100 documents) instead of spawning one thread per upload. Concurrent uploads no longer hold several documents' text, chunks and embedding vectors in memory at once. Queue overflow returns `503`; the file is kept and the document marked as errored so it can be re-indexed later.
 - Gunicorn switched from 3 worker processes to `1 worker + 4 threads` (`GUNICORN_WORKERS`, `GUNICORN_THREADS`). Embedded ChromaDB (`PersistentClient`) is per-process: multiple processes each held their own copy of the HNSW index and wrote to the same persist directory concurrently.
 - `MAX_UPLOAD_SIZE` setting added (default 25 MiB). Enforced before indexing starts, independently of file extension, and re-checked while streaming to disk so an understated `Content-Length` cannot bypass it. REST API answers `413`; UI shows a plain message.

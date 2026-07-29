@@ -9,6 +9,7 @@ Delegates to:
 """
 
 import logging
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -50,6 +51,15 @@ class RAGPipeline:
 
     _instance: Optional['RAGPipeline'] = None
 
+    # Guards singleton creation and (re)initialisation of the shared ChromaDB
+    # client.  Gunicorn runs a single worker process with several threads (see
+    # entrypoint.sh / GUNICORN_THREADS), so two concurrent requests can reach
+    # this code at the same time on a cold start.  Two chromadb.PersistentClient
+    # objects against one persist directory is the index-corruption path that
+    # collapsing the worker processes was meant to close.
+    # Reentrant: get_instance() holds the lock while calling _initialize().
+    _lock = threading.RLock()
+
     def __init__(self):
         self._chroma_client = None
         self._collection = None
@@ -59,25 +69,35 @@ class RAGPipeline:
     def get_instance(cls) -> 'RAGPipeline':
         """Get or create singleton instance."""
         if cls._instance is None:
-            cls._instance = cls()
-            cls._instance._initialize()
+            with cls._lock:
+                if cls._instance is None:
+                    instance = cls()
+                    instance._initialize()
+                    # Publish only after a successful initialisation: a pipeline
+                    # whose ChromaDB client failed to build must not become the
+                    # process-wide singleton.
+                    cls._instance = instance
         return cls._instance
 
     def _initialize(self):
-        """Initialize ChromaDB and LLM backend."""
-        chroma_dir = settings.CHROMA_PERSIST_DIR
-        Path(chroma_dir).mkdir(parents=True, exist_ok=True)
-        self._chroma_client = chromadb.PersistentClient(path=chroma_dir)
-        self._collection = self._chroma_client.get_or_create_collection(
-            name=settings.CHROMA_COLLECTION,
-            metadata={'hnsw:space': 'cosine'},
-        )
-        logger.info(
-            "ChromaDB initialized: collection='%s', documents=%d",
-            settings.CHROMA_COLLECTION,
-            self._collection.count(),
-        )
-        self._llm_backend = create_llm_backend()
+        """Initialize ChromaDB and LLM backend.  Idempotent and thread-safe."""
+        with self._lock:
+            if self._collection is not None and self._llm_backend is not None:
+                return
+
+            chroma_dir = settings.CHROMA_PERSIST_DIR
+            Path(chroma_dir).mkdir(parents=True, exist_ok=True)
+            self._chroma_client = chromadb.PersistentClient(path=chroma_dir)
+            self._collection = self._chroma_client.get_or_create_collection(
+                name=settings.CHROMA_COLLECTION,
+                metadata={'hnsw:space': 'cosine'},
+            )
+            logger.info(
+                "ChromaDB initialized: collection='%s', documents=%d",
+                settings.CHROMA_COLLECTION,
+                self._collection.count(),
+            )
+            self._llm_backend = create_llm_backend()
 
     @property
     def collection(self):
