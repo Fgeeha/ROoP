@@ -39,5 +39,14 @@ Thumbs.db
 # Linter & Tests cache
 .ruff_cache/
 .pytest_cache/
+.coverage
+rag_ollama/.coverage
 
+# Logs
 rag_ollama/logs/
+rag_ollama/logs/rag_system.log
+
+# Machine-local tooling artefacts
+.claude/
+rag_ollama/.claude/
+.codegraph/
