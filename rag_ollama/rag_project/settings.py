@@ -205,8 +205,15 @@ LLM_BACKEND = os.getenv('LLM_BACKEND', 'ollama').lower()
 
 # Ollama settings (used when LLM_BACKEND=ollama)
 OLLAMA_URL = os.getenv('OLLAMA_URL', 'http://localhost:11434')
-EMBED_MODEL = os.getenv('EMBED_MODEL', 'nomic-embed-text')
-LLM_MODEL = os.getenv('LLM_MODEL', 'mistral')
+# bge-m3 is trained multilingually; the previous default (nomic-embed-text) is
+# English-only, which retrieves Russian documents noticeably worse.  Changing
+# this on an existing install changes the vector dimension (768 -> 1024) and
+# requires a new CHROMA_COLLECTION plus a full re-index.
+EMBED_MODEL = os.getenv('EMBED_MODEL', 'bge-m3')
+# gemma3:4b is smaller than the previous default (mistral 7B), answers faster on
+# CPU and handles Russian better.  `make models-recommend` sizes both models
+# against the actual machine.
+LLM_MODEL = os.getenv('LLM_MODEL', 'gemma3:4b')
 # Per-request timeout for Ollama API calls (embed + chat).
 # CPU machines can take minutes per request; 300s is generous but finite.
 OLLAMA_REQUEST_TIMEOUT = int(os.getenv('OLLAMA_REQUEST_TIMEOUT', '300'))
@@ -226,8 +233,8 @@ CHUNK_OVERLAP = int(os.getenv('CHUNK_OVERLAP', '200'))
 # Smaller batches = shorter per-request wall time on CPU, finer progress granularity.
 EMBED_BATCH_SIZE = int(os.getenv('EMBED_BATCH_SIZE', '10'))
 # SEARCH_K: number of chunks retrieved before relevance filtering.
-# nomic-embed-text chunks at ~1000 chars; Mistral context window is 32k tokens.
-# 6-8 chunks gives ~6-8k chars of context -- well within the window.
+# Chunks are ~1000 chars, so 6-8 of them give ~6-8k chars of context -- within
+# OLLAMA_CONTEXT_LENGTH (4096 tokens) for the default models.
 SEARCH_K = int(os.getenv('SEARCH_K', '6'))
 # SEARCH_RELEVANCE_THRESHOLD: cosine similarity floor [0.0, 1.0].
 # ChromaDB returns cosine DISTANCE; relevance = 1 - distance.

@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Default models replaced. `EMBED_MODEL`: `nomic-embed-text` → `bge-m3`; `LLM_MODEL`: `mistral` → `gemma3:4b`. `nomic-embed-text` is trained on English only, which retrieves Russian documents noticeably worse — the single largest retrieval-quality issue in a project whose interface and documentation are Russian. `gemma3:4b` is 1 GB smaller than mistral 7B, answers faster on CPU, and handles Russian better. Existing installations are unaffected: `.env` carries an explicit value, which wins over the setting default. **Switching `EMBED_MODEL` on a populated install changes the vector dimension (768 → 1024) and requires a new `CHROMA_COLLECTION` plus a full re-index**; ChromaDB otherwise rejects the write with a dimension error.
+- `ollama/ollama:latest` pinned to `0.32.5` (`OLLAMA_IMAGE_TAG`). `latest` changed the runtime under a repository that had not changed.
+- Makefile and README referenced `rag-django` / `rag-ollama`, but the compose files name the containers `roop-django` / `roop-ollama`. `make logs-django`, `make docker-shell`, `make docker-superuser` and `make docker-manage` had been broken since the rename. Container names are now a Makefile variable.
+
+### Added
+
+- `scripts/recommend_models.py` (`make models-recommend`) sizes both models against the actual machine: total RAM, CPU cores, and NVIDIA VRAM via `nvidia-smi`. Budget is VRAM − 1 GB on a GPU box, otherwise RAM − 4.5 GB for the rest of the stack, capped at 6 GB — on CPU the binding constraint is generation speed, not memory, so extra RAM buys nothing. Prints the `.env` lines, flags which models are already pulled, and warns when the configured `EMBED_MODEL` differs from the recommendation. Stdlib only and Django-free by design: it has to run before the project is installed.
+- `make models` / `make models-host` / `make models-list` pull and inspect the models named in `.env` instead of the previously hardcoded pair. The `ollama-pull` compose service reads `LLM_MODEL` and `EMBED_MODEL` too, so a first `docker compose up` fetches what the configuration actually asks for.
+- Published images can be run without building: `make up-image`, `make up-image-cpu`, `make up-image-external` do `docker compose pull` followed by `up --no-build`. The django service carries `image: ${ROOP_IMAGE:-fgeeha/roop:latest}` alongside `build:`, so `docker compose build` still tags the local build under the same name.
+- Corporate-network support for `ollama pull`. Behind a TLS-inspecting proxy the pull failed with `x509: certificate signed by unknown authority`: the gateway's root certificate is installed on the host but not inside the Ollama container. `make ollama-ca CA=<root.crt>` concatenates the system CA bundle with the corporate root into `certs/ca-bundle.crt`, which is mounted at `/certs`; `OLLAMA_SSL_CERT_FILE` points at it. The bundle is concatenated rather than substituted because `SSL_CERT_FILE` replaces the trust store wholesale. `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are passed through to the `ollama` and `ollama-pull` services for the plain-proxy case, with `NO_PROXY` defaulting to the internal service names. Documented alongside an offline transfer of the `ollama_data` volume for networks where neither applies.
+
 ### Security
 
 - API key comparison changed to constant-time (`hmac.compare_digest`) to prevent timing attacks.

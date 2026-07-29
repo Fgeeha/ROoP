@@ -13,6 +13,14 @@ DOCKER_COMPOSE := docker compose
 DOCKER_COMPOSE_CPU := $(DOCKER_COMPOSE) -f docker-compose.cpu.yml
 DOCKER_COMPOSE_EXT := $(DOCKER_COMPOSE) -f docker-compose.external.yml
 
+# Container names (must match container_name: in the compose files)
+DJANGO_CONTAINER := roop-django
+OLLAMA_CONTAINER := roop-ollama
+
+# Defaults must mirror rag_project/settings.py — used only when .env is silent
+DEFAULT_LLM_MODEL := gemma3:4b
+DEFAULT_EMBED_MODEL := bge-m3
+
 # ==============================================================================
 # Help
 # ==============================================================================
@@ -92,17 +100,69 @@ flush: ## Flush database (delete all data)
 	$(MANAGE) flush --noinput
 
 # ==============================================================================
+# Models
+# ==============================================================================
+
+.PHONY: models-recommend
+models-recommend: ## Inspect RAM/GPU and recommend LLM_MODEL and EMBED_MODEL
+	@$(PYTHON) scripts/recommend_models.py
+
+.PHONY: models
+models: ## Pull LLM_MODEL and EMBED_MODEL from .env into the Ollama container
+	@LLM=$$(grep '^LLM_MODEL=' .env 2>/dev/null | cut -d= -f2-); \
+	EMB=$$(grep '^EMBED_MODEL=' .env 2>/dev/null | cut -d= -f2-); \
+	LLM=$${LLM:-$(DEFAULT_LLM_MODEL)}; EMB=$${EMB:-$(DEFAULT_EMBED_MODEL)}; \
+	if ! docker ps --format '{{.Names}}' | grep -qx '$(OLLAMA_CONTAINER)'; then \
+		printf "\033[0;31m$(OLLAMA_CONTAINER) is not running. Use 'make up' / 'make up-cpu', or 'make models-host' for a host Ollama.\033[0m\n"; \
+		exit 1; \
+	fi; \
+	printf "\033[0;36mPulling %s ...\033[0m\n" "$$LLM"; \
+	docker exec $(OLLAMA_CONTAINER) ollama pull "$$LLM" || $(MAKE) --no-print-directory models-tls-hint; \
+	printf "\033[0;36mPulling %s ...\033[0m\n" "$$EMB"; \
+	docker exec $(OLLAMA_CONTAINER) ollama pull "$$EMB" || $(MAKE) --no-print-directory models-tls-hint
+
+.PHONY: models-host
+models-host: ## Pull the same models into an Ollama installed on the host
+	@LLM=$$(grep '^LLM_MODEL=' .env 2>/dev/null | cut -d= -f2-); \
+	EMB=$$(grep '^EMBED_MODEL=' .env 2>/dev/null | cut -d= -f2-); \
+	ollama pull "$${LLM:-$(DEFAULT_LLM_MODEL)}"; \
+	ollama pull "$${EMB:-$(DEFAULT_EMBED_MODEL)}"
+
+.PHONY: models-list
+models-list: ## List models present in the Ollama container
+	@docker exec $(OLLAMA_CONTAINER) ollama list 2>/dev/null || \
+		printf "\033[0;31m$(OLLAMA_CONTAINER) is not running\033[0m\n"
+
+.PHONY: models-tls-hint
+models-tls-hint: ## Explain the x509 error behind a corporate proxy
+	@printf "\n\033[0;33mЕсли pull упал с 'x509: certificate signed by unknown authority':\033[0m\n"
+	@printf "  Корпоративный прокси подменяет TLS, а его корневой сертификат есть\n"
+	@printf "  в системе, но не внутри контейнера Ollama. Соберите общий bundle:\n\n"
+	@printf "    make ollama-ca CA=/path/to/corporate-root.crt\n"
+	@printf "    # затем в .env:  OLLAMA_SSL_CERT_FILE=/certs/ca-bundle.crt\n"
+	@printf "    make down && make up-cpu && make models\n\n"
+	@printf "  Если вместо подмены TLS используется HTTP-прокси, пропишите в .env\n"
+	@printf "  HTTPS_PROXY / HTTP_PROXY / NO_PROXY — они пробрасываются в Ollama.\n\n"
+
+.PHONY: ollama-ca
+ollama-ca: ## Build certs/ca-bundle.crt from system CAs + corporate CA (usage: make ollama-ca CA=/path/root.crt)
+	@if [ -z "$(CA)" ]; then \
+		printf "\033[0;31mUsage: make ollama-ca CA=/path/to/corporate-root.crt\033[0m\n"; exit 1; fi
+	@if [ ! -f "$(CA)" ]; then printf "\033[0;31mNot found: $(CA)\033[0m\n"; exit 1; fi
+	@SYS=""; for f in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt; do \
+		[ -f "$$f" ] && SYS="$$f" && break; done; \
+	if [ -z "$$SYS" ]; then printf "\033[0;31mSystem CA bundle not found\033[0m\n"; exit 1; fi; \
+	mkdir -p certs; cat "$$SYS" "$(CA)" > certs/ca-bundle.crt; \
+	printf "\033[0;32mcerts/ca-bundle.crt built from %s + %s\033[0m\n" "$$SYS" "$(CA)"
+	@printf "\033[0;33mNow set in .env:  OLLAMA_SSL_CERT_FILE=/certs/ca-bundle.crt\033[0m\n"
+
+# ==============================================================================
 # Ollama (direct)
 # ==============================================================================
 
 .PHONY: ollama-serve
 ollama-serve: ## Start Ollama server locally
 	ollama serve
-
-.PHONY: ollama-pull
-ollama-pull: ## Pull required Ollama models (mistral + nomic-embed-text)
-	ollama pull mistral
-	ollama pull nomic-embed-text
 
 .PHONY: ollama-status
 ollama-status: ## Check Ollama status and available models
@@ -179,6 +239,24 @@ up: ## Start all services with Docker (GPU)
 up-cpu: ## Start all services with Docker (CPU only)
 	$(DOCKER_COMPOSE_CPU) up -d
 
+.PHONY: pull-images
+pull-images: ## Download the published images without building anything
+	$(DOCKER_COMPOSE) pull
+
+.PHONY: up-image
+up-image: pull-images ## Start from the published image, never build (GPU)
+	$(DOCKER_COMPOSE) up -d --no-build
+
+.PHONY: up-image-cpu
+up-image-cpu: ## Start from the published image, never build (CPU)
+	$(DOCKER_COMPOSE_CPU) pull
+	$(DOCKER_COMPOSE_CPU) up -d --no-build
+
+.PHONY: up-image-external
+up-image-external: ## Start from the published image, never build (remote Ollama)
+	$(DOCKER_COMPOSE_EXT) pull
+	$(DOCKER_COMPOSE_EXT) up -d --no-build
+
 .PHONY: up-build
 up-build: ## Build and start all services (GPU)
 	$(DOCKER_COMPOSE) up -d --build
@@ -233,10 +311,10 @@ logs-ext: ## Show Docker logs (external Ollama compose)
 
 .PHONY: logs-django
 logs-django: ## Show Django container logs
-	@if docker ps --format '{{.Names}}' | grep -q rag-django; then \
-		docker logs -f rag-django; \
+	@if docker ps --format '{{.Names}}' | grep -q $(DJANGO_CONTAINER); then \
+		docker logs -f $(DJANGO_CONTAINER); \
 	else \
-		printf "\033[0;31mrag-django is not running\033[0m\n"; \
+		printf "\033[0;31m$(DJANGO_CONTAINER) is not running\033[0m\n"; \
 	fi
 
 .PHONY: logs-ollama
@@ -256,15 +334,15 @@ rebuild: down up-build ## Rebuild and restart all services
 
 .PHONY: docker-shell
 docker-shell: ## Open shell in Django container
-	docker exec -it rag-django /bin/bash
+	docker exec -it $(DJANGO_CONTAINER) /bin/bash
 
 .PHONY: docker-superuser
 docker-superuser: ## Create Django superuser inside Docker container (interactive)
-	docker exec -it rag-django python manage.py createsuperuser
+	docker exec -it $(DJANGO_CONTAINER) python manage.py createsuperuser
 
 .PHONY: docker-manage
 docker-manage: ## Run Django manage.py in container (usage: make docker-manage CMD="migrate")
-	docker exec -it rag-django python manage.py $(CMD)
+	docker exec -it $(DJANGO_CONTAINER) python manage.py $(CMD)
 
 # ==============================================================================
 # Linting & Formatting

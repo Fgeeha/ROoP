@@ -34,6 +34,8 @@ services:
 
   # --------------------------------------------------------------------------
   django:
+    # Готовый образ из реестра: `make up-image-external` запускает без сборки.
+    image: ${ROOP_IMAGE:-fgeeha/roop:latest}
     build:
       context: .
       dockerfile: Dockerfile

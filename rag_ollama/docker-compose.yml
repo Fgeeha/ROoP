@@ -28,18 +28,26 @@ services:
 
   # --------------------------------------------------------------------------
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-0.32.5}
     container_name: roop-ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+      # Корпоративный корневой сертификат для `ollama pull` за MITM-прокси.
+      # Каталог всегда существует; без OLLAMA_SSL_CERT_FILE ни на что не влияет.
+      - ./certs:/certs:ro
     environment:
       # Tuned for a 16 GB machine — see README "Ollama resource limits".
       OLLAMA_MAX_LOADED_MODELS: "${OLLAMA_MAX_LOADED_MODELS:-1}"
       OLLAMA_NUM_PARALLEL: "${OLLAMA_NUM_PARALLEL:-1}"
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-5m}"
       OLLAMA_CONTEXT_LENGTH: "${OLLAMA_CONTEXT_LENGTH:-4096}"
+      # Пустое значение = системный набор корневых сертификатов образа.
+      SSL_CERT_FILE: "${OLLAMA_SSL_CERT_FILE:-}"
+      HTTP_PROXY: "${HTTP_PROXY:-}"
+      HTTPS_PROXY: "${HTTPS_PROXY:-}"
+      NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,ollama,postgres,django}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
@@ -56,24 +64,36 @@ services:
 
   # --------------------------------------------------------------------------
   ollama-pull:
-    image: ollama/ollama:latest
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-0.32.5}
     container_name: roop-ollama-pull
     depends_on:
       ollama:
         condition: service_healthy
+    volumes:
+      - ./certs:/certs:ro
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Pulling models..."
-        ollama pull mistral
-        ollama pull nomic-embed-text
+        set -e
+        echo "Pulling $${LLM_MODEL} and $${EMBED_MODEL}..."
+        ollama pull "$${LLM_MODEL}"
+        ollama pull "$${EMBED_MODEL}"
         echo "Models ready!"
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-gemma3:4b}
+      - EMBED_MODEL=${EMBED_MODEL:-bge-m3}
+      - SSL_CERT_FILE=${OLLAMA_SSL_CERT_FILE:-}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,ollama,postgres,django}
     restart: "no"
 
   # --------------------------------------------------------------------------
   django:
+    # Готовый образ из реестра: `make up-image` запускает без сборки.
+    # `docker compose build` собирает локально под этим же именем.
+    image: ${ROOP_IMAGE:-fgeeha/roop:latest}
     build:
       context: .
       dockerfile: Dockerfile

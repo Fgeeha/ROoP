@@ -40,11 +40,13 @@ cd ROoP/rag_ollama
 cp .env.example .env
 # задайте DJANGO_SUPERUSER_PASSWORD, SECRET_KEY и POSTGRES_PASSWORD
 
-make up-cpu        # ноутбук или сервер без GPU
-# make up          # NVIDIA GPU
+make up-image-cpu  # ноутбук или сервер без GPU
+# make up-image    # NVIDIA GPU
 ```
 
-Первый запуск занимает несколько минут — скачиваются модели Ollama: mistral (~4 ГБ) и nomic-embed-text (~300 МБ).
+`up-image` запускает готовый образ из реестра. Чтобы собрать локально, используйте `make up-cpu` / `make up`.
+
+Первый запуск занимает несколько минут — скачиваются модели Ollama: gemma3:4b (~3,3 ГБ) и bge-m3 (~1,2 ГБ). Подобрать модели под своё железо: `make models-recommend`.
 
 Дальше откройте **http://localhost:8000**, загрузите PDF и задайте по нему вопрос.
 
@@ -77,7 +79,7 @@ docker pull ghcr.io/fgeeha/roop:latest  # GitHub Packages
 | `<short-sha>` | Конкретный коммит, например `eefcb16` |
 | `1.2.0`, `1.2` | Версия из git-тега `v1.2.0` |
 
-В production закрепляйтесь на теге версии или на sha, а не на `latest`.
+В production закрепляйтесь на теге версии или на sha, а не на `latest`. Какой образ запускает `make up-image`, задаётся переменной `ROOP_IMAGE` в `.env`.
 
 Релиз выпускается отправкой тега:
 
@@ -97,6 +99,10 @@ git push origin v1.2.0
 | `DJANGO_SUPERUSER_PASSWORD` | **Да** | — | Задать перед первым запуском. Генерация: `python3 -c "import secrets; print(secrets.token_urlsafe(24))"` |
 | `SECRET_KEY` | **Да** | `django-insecure-...` | Заменить на случайную строку длиной 50+ символов |
 | `POSTGRES_PASSWORD` | **Да** | `change-me-in-production` | Задать надёжный пароль |
+| `LLM_MODEL` | Нет | `gemma3:4b` | Чат-модель. Подобрать под железо: `make models-recommend` |
+| `EMBED_MODEL` | Нет | `bge-m3` | Мультиязычная embedding-модель. **Смена требует полной переиндексации**: размерность векторов другая |
+| `ROOP_IMAGE` | Нет | `fgeeha/roop:latest` | Какой образ запускает `make up-image`. В production — тег версии или sha |
+| `OLLAMA_SSL_CERT_FILE` | Нет | пусто | Путь внутри контейнера к CA-bundle. Нужен, если корпоративный прокси подменяет TLS и `ollama pull` падает с `x509` |
 | `OLLAMA_REQUEST_TIMEOUT` | Нет | `300` | Поднять (напр. `600`), если индексация большого файла падает по таймауту на слабой CPU-машине |
 | `EMBED_BATCH_SIZE` | Нет | `10` | Снизить (напр. `5`) при нехватке памяти во время индексации |
 | `MAX_UPLOAD_SIZE` | Нет | `26214400` (25 МиБ) | Жёсткий лимит на документ в байтах. Файл больше отклоняется до индексации: API отдаёт `413` |
@@ -123,7 +129,17 @@ git push origin v1.2.0
 
 **«Очередь индексации переполнена».** В очереди уже 100 документов. Файл сохранён, но не проиндексирован: дождитесь завершения текущих задач и нажмите «↻».
 
-**Нужно перестроить индекс после смены `EMBED_MODEL`.** Кнопка «↻» работает и для успешно обработанных документов. Для массовой переиндексации остановите веб-сервис: `make down && docker compose run --rm django python manage.py reindex_documents --status completed`.
+**`ollama pull` падает с `x509: certificate signed by unknown authority`.** Корпоративный шлюз расшифровывает TLS и подписывает соединения своим корневым сертификатом. В браузере всё работает, потому что этот сертификат установлен в системе — внутри контейнера Ollama его нет. Соберите общий набор сертификатов и укажите путь внутри контейнера:
+
+```bash
+make ollama-ca CA=/path/to/corporate-root.crt   # склеит системный bundle с корпоративным
+# в .env:  OLLAMA_SSL_CERT_FILE=/certs/ca-bundle.crt
+make down && make up-cpu && make models
+```
+
+Если прокси не подменяет TLS, а просто проксирует, сертификат не нужен — задайте `HTTPS_PROXY` и `NO_PROXY` в `.env`. Подробности и офлайн-перенос моделей — в [`rag_ollama/README.md`](rag_ollama/README.md).
+
+**Нужно перестроить индекс после смены `EMBED_MODEL`.** Смена embedding-модели меняет размерность векторов, поэтому нужна новая коллекция: задайте другое `CHROMA_COLLECTION`, перезапустите, затем переиндексируйте. Кнопка «↻» работает и для успешно обработанных документов. Для массовой переиндексации остановите веб-сервис: `make down && docker compose run --rm django python manage.py reindex_documents --status completed`.
 
 **Публичная ссылка перестала открываться.** По умолчанию ссылка живёт 30 дней (`SHARE_LINK_TTL_DAYS`). Создайте её заново кнопкой «Поделиться». Активные ссылки и их сроки видны в профиле, там же их можно отозвать досрочно.
 

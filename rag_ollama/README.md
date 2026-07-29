@@ -5,7 +5,7 @@ Production-ready RAG (Retrieval-Augmented Generation) система на Django
 ## Tech Stack
 
 - **Backend:** Django 5.1 + Django REST Framework
-- **LLM:** Ollama (mistral + nomic-embed-text)
+- **LLM:** Ollama (gemma3:4b + bge-m3, подбираются под железо через `make models-recommend`)
 - **Vector DB:** ChromaDB (persistent local storage)
 - **Frontend:** Django Templates + HTMX + Alpine.js
 - **Documents:** PDF, TXT, MD
@@ -16,6 +16,27 @@ Production-ready RAG (Retrieval-Augmented Generation) система на Django
 ---
 
 ## Quick Start
+
+### Вариант 0. Готовый образ, без сборки
+
+Django-образ публикуется в Docker Hub и GitHub Packages. Если не нужно менять код,
+собирать его локально незачем:
+
+```bash
+cd rag_ollama
+cp .env.example .env
+
+make up-image            # GPU
+make up-image-cpu        # CPU
+make up-image-external   # удалённая Ollama
+```
+
+Эти цели делают `docker compose pull` и запускают с `--no-build`: сборка не
+произойдёт даже если Dockerfile изменился. Какой образ брать — задаётся
+`ROOP_IMAGE` в `.env` (по умолчанию `fgeeha/roop:latest`).
+В production закрепляйтесь на теге версии или sha, а не на `latest`.
+
+Варианты ниже собирают образ локально.
 
 ### Вариант 1. Docker + локальная Ollama (все на одном сервере)
 
@@ -32,7 +53,8 @@ make up
 make up-cpu
 ```
 
-Первый запуск занимает время -- скачиваются модели Ollama (mistral ~4GB, nomic-embed-text ~300MB).
+Первый запуск занимает время -- скачиваются модели Ollama (gemma3:4b ~3.3GB, bge-m3 ~1.2GB).
+Подобрать модели под своё железо: `make models-recommend`.
 
 Открыть: **http://localhost:8000**
 Django Admin: **http://localhost:8000/admin/** (логин и пароль из `.env` → `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`)
@@ -59,7 +81,7 @@ OLLAMA_URL=http://192.168.1.100:11434
 make ollama-check-remote
 
 # Если модели не загружены -- выполнить на сервере с Ollama:
-# ssh user@192.168.1.100 "ollama pull mistral && ollama pull nomic-embed-text"
+# ssh user@192.168.1.100 "ollama pull gemma3:4b && ollama pull bge-m3"
 ```
 
 Запуск:
@@ -97,7 +119,7 @@ make superuser               # Создать суперпользователя
 # OLLAMA_URL=http://localhost:11434
 
 make ollama-serve &
-make ollama-pull
+make models-host
 make run
 ```
 
@@ -128,8 +150,8 @@ cp .env.example .env
 LLM_BACKEND=openwebui
 OPENWEBUI_URL=http://192.168.1.100:3000
 OPENWEBUI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-EMBED_MODEL=nomic-embed-text
-LLM_MODEL=mistral
+EMBED_MODEL=bge-m3
+LLM_MODEL=gemma3:4b
 ```
 
 API-ключ Open WebUI можно получить в интерфейсе: Settings -> Account -> API Keys.
@@ -188,7 +210,11 @@ make help            # Показать все доступные команды
 | Command                  | Description                                      |
 |--------------------------|--------------------------------------------------|
 | `make ollama-serve`      | Запустить Ollama сервер локально                  |
-| `make ollama-pull`       | Скачать модели (mistral + nomic-embed-text)       |
+| `make models-recommend`  | Подобрать модели под это железо (RAM/GPU)         |
+| `make models`            | Скачать модели из `.env` в контейнер Ollama       |
+| `make models-host`       | Скачать модели в Ollama, установленную на хосте   |
+| `make models-list`       | Список моделей в контейнере Ollama                |
+| `make ollama-ca`         | Собрать CA-bundle для pull за корпоративным прокси|
 | `make ollama-status`     | Проверить статус Ollama (читает OLLAMA_URL из .env)|
 | `make ollama-check-remote`| Проверить доступность удалённой Ollama            |
 
@@ -207,6 +233,10 @@ make help            # Показать все доступные команды
 | `make up`                | Запустить все сервисы (GPU + Ollama)           |
 | `make up-cpu`            | Запустить все сервисы (CPU + Ollama)           |
 | `make up-external`       | Только Django, Ollama на удалённом сервере     |
+| `make pull-images`       | Скачать опубликованные образы, ничего не собирая |
+| `make up-image`          | Запустить из готового образа, без сборки (GPU) |
+| `make up-image-cpu`      | Запустить из готового образа, без сборки (CPU) |
+| `make up-image-external` | Запустить из готового образа (удалённая Ollama)|
 | `make up-build`          | Пересобрать и запустить (GPU)                  |
 | `make up-build-cpu`      | Пересобрать и запустить (CPU)                  |
 | `make up-build-external` | Пересобрать и запустить (удалённая Ollama)     |
@@ -412,8 +442,8 @@ OLLAMA_URL=http://ollama:11434
 # OLLAMA_URL=http://localhost:11434        # локальная разработка
 # OLLAMA_URL=http://192.168.1.100:11434    # удалённый сервер
 
-EMBED_MODEL=nomic-embed-text
-LLM_MODEL=mistral
+EMBED_MODEL=bge-m3
+LLM_MODEL=gemma3:4b
 
 # Таймаут запроса к Ollama, секунды. На CPU-машинах поднять при ошибках таймаута.
 OLLAMA_REQUEST_TIMEOUT=300
@@ -423,6 +453,15 @@ OLLAMA_MAX_LOADED_MODELS=1      # не держать чат- и embedding-мо�
 OLLAMA_NUM_PARALLEL=1           # параллельные запросы умножают KV-кэш
 OLLAMA_KEEP_ALIVE=5m
 OLLAMA_CONTEXT_LENGTH=4096
+OLLAMA_IMAGE_TAG=0.32.5         # версия образа закреплена намеренно
+
+# Готовый образ Django для make up-image
+ROOP_IMAGE=fgeeha/roop:latest
+
+# Корпоративная сеть: CA-bundle для pull за TLS-инспекцией, путь ВНУТРИ контейнера
+OLLAMA_SSL_CERT_FILE=
+# HTTPS_PROXY=http://proxy.corp.local:3128
+# NO_PROXY=localhost,127.0.0.1,ollama,postgres,django
 
 # ChromaDB
 CHROMA_PERSIST_DIR=/app/chroma_data
@@ -451,6 +490,50 @@ SHARE_LINK_TTL_DAYS=30
 # Logging
 LOG_LEVEL=INFO
 ```
+
+### Выбор моделей
+
+Значения по умолчанию (`gemma3:4b` + `bge-m3`) рассчитаны на машину с 16 ГБ RAM
+без GPU. Подобрать под конкретное железо:
+
+```bash
+make models-recommend    # смотрит RAM, ядра, VRAM и печатает строки для .env
+make models              # скачивает LLM_MODEL и EMBED_MODEL из .env
+make models-list         # что уже загружено
+```
+
+Скрипт считает бюджет памяти так: при наличии NVIDIA GPU — VRAM минус 1 ГБ;
+без GPU — RAM минус 4.5 ГБ на остальной стек (Django, ChromaDB, PostgreSQL, ОС),
+но не более 6 ГБ. Верхняя граница на CPU стоит намеренно: там ограничивает не
+память, а скорость генерации — 7B-модель на процессоре отвечает минутами.
+
+**Чат-модель**
+
+| Модель | Размер | Когда |
+|---|---|---|
+| `gemma3:1b` | 0.8 ГБ | меньше 6 ГБ RAM, качество ответов заметно ниже |
+| `llama3.2:3b` | 2.0 ГБ | 8 ГБ RAM; по-русски слабее gemma3 |
+| `gemma3:4b` | 3.3 ГБ | **по умолчанию**: 16 ГБ RAM или GPU от 6 ГБ |
+| `qwen2.5:7b` | 4.7 ГБ | GPU от 8 ГБ |
+| `gemma3:12b` | 8.2 ГБ | GPU от 12 ГБ |
+
+**Embedding-модель**
+
+| Модель | Размер | Размерность | Когда |
+|---|---|---|---|
+| `embeddinggemma` | 0.6 ГБ | 768 | мало памяти |
+| `bge-m3` | 1.2 ГБ | 1024 | **по умолчанию**: мультиязычная, контекст 8192 |
+
+Предыдущее значение по умолчанию, `nomic-embed-text`, обучено только на
+английском и хуже ищет по русским документам. Оно продолжает работать, но для
+новых установок не рекомендуется.
+
+> **Смена `EMBED_MODEL` требует полной переиндексации.** Размерность векторов у
+> моделей разная, и ChromaDB вернёт ошибку размерности при попытке дописать
+> новые векторы в старую коллекцию. Порядок: задать новое `CHROMA_COLLECTION`,
+> перезапустить, затем
+> `make docker-manage CMD="reindex_documents --status completed"`.
+> Смена `LLM_MODEL` переиндексации не требует.
 
 ### Ограничения ресурсов на слабой машине (16 ГБ RAM)
 
@@ -531,26 +614,99 @@ make restart              # Перезапустить все
 
 ```bash
 # Локально
-make ollama-pull
+make models
 
 # В Docker
-docker exec -it rag-ollama ollama pull mistral
-docker exec -it rag-ollama ollama pull nomic-embed-text
+docker exec -it roop-ollama ollama pull gemma3:4b
+docker exec -it roop-ollama ollama pull bge-m3
 ```
+
+### `ollama pull` падает с `x509: certificate signed by unknown authority`
+
+```text
+Error: pull model manifest: Get "https://registry.ollama.ai/v2/library/...":
+tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+Типичная корпоративная сеть: шлюз расшифровывает TLS и подписывает соединения
+своим корневым сертификатом. В браузере всё открывается, потому что этот
+сертификат установлен в системе — но внутри контейнера Ollama его нет, там
+только штатный набор корневых сертификатов образа.
+
+Проверить, что дело именно в этом:
+
+```bash
+docker exec -it roop-ollama sh -c \
+  'wget -qO- https://registry.ollama.ai/v2/ 2>&1 | head -3'
+```
+
+**Решение — добавить корпоративный CA в контейнер.** Нужен файл корневого
+сертификата в формате PEM. Обычно он уже лежит в системе
+(`/usr/local/share/ca-certificates/`), либо его выдаёт служба поддержки, либо
+его можно выгрузить из браузера: замок в адресной строке -> сведения о
+сертификате -> корневой в цепочке -> экспорт в PEM/CRT.
+
+```bash
+make ollama-ca CA=/usr/local/share/ca-certificates/corp-root.crt
+```
+
+Цель склеивает системный набор сертификатов с корпоративным в
+`certs/ca-bundle.crt`. Каталог `certs/` уже смонтирован в контейнер как
+`/certs` — остаётся указать путь **внутри контейнера** в `.env`:
+
+```ini
+OLLAMA_SSL_CERT_FILE=/certs/ca-bundle.crt
+```
+
+```bash
+make down && make up-cpu && make models
+```
+
+Важно использовать именно склеенный bundle, а не один корпоративный
+сертификат: `SSL_CERT_FILE` **заменяет** набор корневых сертификатов целиком,
+и с одним CA перестанет проверяться всё остальное.
+
+**Если вместо подмены TLS используется обычный HTTP-прокси**, сертификат не
+нужен — достаточно прописать в `.env`:
+
+```ini
+HTTPS_PROXY=http://proxy.corp.local:3128
+HTTP_PROXY=http://proxy.corp.local:3128
+NO_PROXY=localhost,127.0.0.1,ollama,postgres,django
+```
+
+Переменные пробрасываются в сервисы `ollama` и `ollama-pull`. `NO_PROXY`
+обязателен: без него Django пойдёт к Ollama через внешний прокси.
+
+**Если ни то ни другое недоступно**, модели можно перенести с машины, где
+`pull` работает, — файлы лежат в volume `ollama_data`:
+
+```bash
+# на машине с доступом
+docker run --rm -v rag_ollama_ollama_data:/data -v "$PWD":/out alpine \
+  tar czf /out/ollama-models.tar.gz -C /data .
+
+# на рабочей машине, при остановленном roop-ollama
+docker run --rm -v rag_ollama_ollama_data:/data -v "$PWD":/in alpine \
+  tar xzf /in/ollama-models.tar.gz -C /data
+```
+
+Имя volume уточните через `docker volume ls` — оно зависит от имени проекта
+Compose.
 
 ### Django не стартует
 
 ```bash
 make logs-django                                  # Логи
-docker exec -it rag-django python manage.py migrate  # Миграции
-docker exec -it rag-django python manage.py createsuperuser
+docker exec -it roop-django python manage.py migrate  # Миграции
+docker exec -it roop-django python manage.py createsuperuser
 ```
 
 ### ChromaDB ошибки
 
 ```bash
 # Сбросить коллекцию (удалит все embeddings!)
-docker exec -it rag-django python manage.py shell -c "
+docker exec -it roop-django python manage.py shell -c "
 from core.rag_pipeline import RAGPipeline
 p = RAGPipeline.get_instance()
 p._chroma_client.delete_collection('rag_documents')

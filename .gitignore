@@ -21,6 +21,10 @@ coverage.xml
 # ChromaDB
 chroma_data/
 
+# Корпоративные CA-сертификаты (см. make ollama-ca) — машинно-локальны
+rag_ollama/certs/*
+!rag_ollama/certs/.gitkeep
+
 # Environment
 .env
 .venv/
