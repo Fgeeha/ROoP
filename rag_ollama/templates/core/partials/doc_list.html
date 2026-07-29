@@ -4,6 +4,12 @@
 </div>
 {% endif %}
 
+{% if reindexed %}
+<div class="alert alert-info" x-data x-init="setTimeout(() => $el.remove(), 3000)">
+    Документ "{{ reindexed }}" поставлен в очередь на переиндексацию.
+</div>
+{% endif %}
+
 {% if error %}
 <div class="alert alert-error">
     Ошибка: {{ error }}
@@ -53,6 +59,17 @@
                             title="Поделиться документом">
                         &#128279;
                     </button>
+                    {% if doc.status == 'error' or doc.status == 'completed' %}
+                    <button class="btn btn-sm btn-outline"
+                            hx-post="{% url 'core:htmx_doc_reindex' doc.id %}"
+                            hx-target="#doc-list"
+                            hx-swap="innerHTML"
+                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                            {% if doc.status == 'completed' %}hx-confirm="Переиндексировать '{{ doc.original_filename }}'? Текущий индекс будет перестроен."{% endif %}
+                            title="Проиндексировать документ заново">
+                        &#8635;
+                    </button>
+                    {% endif %}
                     <button class="btn btn-sm btn-danger"
                             hx-delete="{% url 'core:htmx_doc_delete' doc.id %}"
                             hx-target="#doc-list"

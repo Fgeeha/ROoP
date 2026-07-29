@@ -17,7 +17,14 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..indexing import QUEUE_FULL_USER_MESSAGE, IndexingQueueFullError, start_indexing_async
+from ..indexing import (
+    QUEUE_FULL_USER_MESSAGE,
+    DocumentBusyError,
+    DocumentFileMissingError,
+    IndexingQueueFullError,
+    queue_reindex,
+    start_indexing_async,
+)
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
 from ..serializers import (
@@ -184,6 +191,40 @@ def api_doc_delete(request, doc_id):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_doc_reindex(request, doc_id):
+    """
+    POST /api/docs/{id}/reindex/
+    Re-index an already uploaded document. Only the owner or admin.
+    """
+    document = get_object_or_404(Document, id=doc_id)
+
+    if document.user != request.user and not request.user.is_staff:
+        return Response({'error': 'Доступ запрещен'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        queue_reindex(document)
+    except (DocumentBusyError, DocumentFileMissingError) as e:
+        # The document exists but its state does not allow re-indexing.
+        return Response({'error': str(e), 'id': document.id}, status=status.HTTP_409_CONFLICT)
+    except IndexingQueueFullError:
+        return Response(
+            {'error': QUEUE_FULL_USER_MESSAGE, 'id': document.id},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    return Response(
+        {
+            'id': document.id,
+            'filename': document.original_filename,
+            'status': document.status,
+            'message': 'Document queued for re-indexing',
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
 
 
 @api_view(['GET'])

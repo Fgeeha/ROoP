@@ -12,6 +12,7 @@ from .api import (
     api_chat_clear,
     api_chat_history,
     api_doc_delete,
+    api_doc_reindex,
     api_docs_list,
     api_stats,
     api_upload,
@@ -24,6 +25,7 @@ from .htmx import (
     htmx_clear_chat,
     htmx_doc_delete,
     htmx_doc_list,
+    htmx_doc_reindex,
     htmx_doc_status,
     htmx_stats,
     htmx_upload,
@@ -45,6 +47,7 @@ __all__ = [
     'htmx_upload',
     'htmx_doc_list',
     'htmx_doc_delete',
+    'htmx_doc_reindex',
     'htmx_doc_status',
     # Sharing
     'create_share_chat',
@@ -57,5 +60,6 @@ __all__ = [
     'api_chat_clear',
     'api_docs_list',
     'api_doc_delete',
+    'api_doc_reindex',
     'api_stats',
 ]

@@ -343,6 +343,7 @@ curl -H "Authorization: Api-Key your-secret-api-key-change-me" http://localhost:
 | POST   | /api/chat/          | Задать вопрос            |
 | GET    | /api/docs/          | Список документов        |
 | DELETE | /api/docs/{id}/     | Удалить документ         |
+| POST   | /api/docs/{id}/reindex/ | Переиндексировать документ |
 | GET    | /api/stats/         | Статистика системы       |
 | GET    | /api/chat/history/  | История чата             |
 | POST   | /api/chat/clear/    | Очистить историю         |
@@ -372,7 +373,21 @@ curl http://localhost:8000/api/stats/ \
 # Удалить документ
 curl -X DELETE http://localhost:8000/api/docs/1/ \
   -H "Authorization: Api-Key your-secret-api-key-change-me"
+
+# Переиндексировать документ (файл уже на сервере, повторная загрузка не нужна)
+curl -X POST http://localhost:8000/api/docs/1/reindex/ \
+  -H "Authorization: Api-Key your-secret-api-key-change-me"
 ```
+
+Переиндексация отвечает `202` при постановке в очередь, `409` если документ уже
+обрабатывается или исходный файл отсутствует на диске, `503` при переполненной
+очереди. Старые чанки документа удаляются из ChromaDB и PostgreSQL до запуска —
+повторный запуск не дублирует индекс.
+
+Массовая переиндексация выполняется командой `manage.py reindex_documents`
+(`--status error|completed`, `--id N`, `--dry-run`). ChromaDB работает встроенным
+клиентом и допускает одного писателя, поэтому **веб-сервис нужно остановить**
+перед запуском команды.
 
 ---
 

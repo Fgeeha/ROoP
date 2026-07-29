@@ -25,11 +25,12 @@ Process scope:
 import logging
 import queue
 import threading
+from pathlib import Path
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import connection
 
-from core.models import Document
+from core.models import Chunk, Document
 from core.rag_pipeline import RAGPipeline
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,15 @@ QUEUE_FULL_USER_MESSAGE = (
     'Дождитесь завершения текущих задач и запустите индексацию повторно.'
 )
 
+DOCUMENT_BUSY_USER_MESSAGE = 'Документ уже стоит в очереди или индексируется. Дождитесь завершения.'
+
+FILE_MISSING_USER_MESSAGE = 'Исходный файл не найден на диске. Загрузите документ заново.'
+
+# Statuses a re-index may start from.  'pending' and 'processing' are excluded
+# deliberately: such a document is already queued, and enqueuing it a second
+# time would index it twice and duplicate its chunks.
+REINDEXABLE_STATUSES = (Document.Status.COMPLETED, Document.Status.ERROR)
+
 # Sentinel that tells the worker loop to exit (used by shutdown_indexing_worker).
 _SHUTDOWN = object()
 
@@ -57,6 +67,14 @@ _worker_lock = threading.Lock()
 
 class IndexingQueueFullError(RuntimeError):
     """Raised when the indexing backlog is full and a document cannot be queued."""
+
+
+class DocumentBusyError(RuntimeError):
+    """Raised when a re-index is requested for a document that is already queued."""
+
+
+class DocumentFileMissingError(RuntimeError):
+    """Raised when a re-index is requested but the source file is gone from disk."""
 
 
 def _run_indexing_in_thread(document_id: int) -> None:
@@ -155,6 +173,98 @@ def start_indexing_async(document_id: int) -> None:
         raise IndexingQueueFullError(QUEUE_FULL_USER_MESSAGE) from exc
 
     logger.info('Document %d queued for indexing (queue depth=%d)', document_id, work_queue.qsize())
+
+
+def _discard_previous_index(document_id: int) -> None:
+    """
+    Drop vectors and chunk rows left by an earlier indexing attempt.
+
+    Without this a re-index appends a second copy of every chunk: ChromaDB ids
+    are generated per call, and process_document() only ever adds.
+    """
+    RAGPipeline.get_instance().delete_document_from_chroma(document_id)
+    deleted, _ = Chunk.objects.filter(document_id=document_id).delete()
+    if deleted:
+        logger.info('Re-index: discarded %d stale chunks of document %d', deleted, document_id)
+
+
+def _claim_for_reindex(document: Document) -> None:
+    """
+    Reset a document to 'pending' and drop the previous attempt's data.
+
+    The status transition is a conditional UPDATE, so two concurrent re-index
+    requests for the same document cannot both proceed.
+
+    Raises:
+        DocumentFileMissingError: source file is gone; nothing to index.
+        DocumentBusyError: document is already pending or processing.
+    """
+    if not Path(document.file_path).is_file():
+        logger.warning('Re-index refused for document %d: file missing', document.pk)
+        raise DocumentFileMissingError(FILE_MISSING_USER_MESSAGE)
+
+    claimed = Document.objects.filter(pk=document.pk, status__in=REINDEXABLE_STATUSES).update(
+        status=Document.Status.PENDING,
+        error_message='',
+        processed_chunks=0,
+        total_chunks=0,
+        processed_at=None,
+    )
+    if not claimed:
+        raise DocumentBusyError(DOCUMENT_BUSY_USER_MESSAGE)
+
+    # Safe to run after the claim: a document becomes visible to the worker
+    # only once it is put on the queue, not by its status alone.
+    _discard_previous_index(document.pk)
+    document.refresh_from_db()
+
+
+def queue_reindex(document: Document) -> None:
+    """
+    Re-index an already uploaded document on the background worker.
+
+    Used to recover documents that failed (Ollama down, timeout, OOM, full
+    queue) and to rebuild an index after the embedding model changed.  The
+    source file on disk is reused; nothing is re-uploaded.
+
+    Raises:
+        DocumentFileMissingError, DocumentBusyError: see _claim_for_reindex.
+        IndexingQueueFullError: backlog is full.  The document is left in
+            'error' with an explanatory message, exactly as on upload.
+    """
+    _claim_for_reindex(document)
+
+    try:
+        start_indexing_async(document.pk)
+    except IndexingQueueFullError:
+        Document.objects.filter(pk=document.pk).update(
+            status=Document.Status.ERROR,
+            error_message=QUEUE_FULL_USER_MESSAGE,
+        )
+        document.refresh_from_db()
+        raise
+
+    document.refresh_from_db()
+    logger.info('Document %d queued for re-indexing', document.pk)
+
+
+def reindex_now(document: Document) -> int:
+    """
+    Re-index a document synchronously, in the calling thread.
+
+    For management commands: a CLI process exits as soon as handle() returns,
+    and the indexing worker is a daemon thread, so queueing from a one-shot
+    process would leave the document in 'pending' forever.
+
+    Returns:
+        Number of chunks written.
+
+    Raises:
+        DocumentFileMissingError, DocumentBusyError: see _claim_for_reindex.
+        Anything process_document() raises after setting status to 'error'.
+    """
+    _claim_for_reindex(document)
+    return RAGPipeline.get_instance().process_document(document)
 
 
 def shutdown_indexing_worker(timeout: float = 5.0) -> None:

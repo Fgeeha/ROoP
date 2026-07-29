@@ -40,6 +40,7 @@ urlpatterns = [
     path('htmx/docs/', login_required(views.htmx_doc_list), name='htmx_doc_list'),
     path('htmx/docs/<int:doc_id>/delete/', login_required(views.htmx_doc_delete), name='htmx_doc_delete'),
     path('htmx/docs/<int:doc_id>/status/', login_required(views.htmx_doc_status), name='htmx_doc_status'),
+    path('htmx/docs/<int:doc_id>/reindex/', login_required(views.htmx_doc_reindex), name='htmx_doc_reindex'),
     # =========================================================================
     # Sharing (create requires login, view is public)
     # =========================================================================
@@ -55,5 +56,6 @@ urlpatterns = [
     path('api/chat/clear/', views.api_chat_clear, name='api_chat_clear'),
     path('api/docs/', views.api_docs_list, name='api_docs_list'),
     path('api/docs/<int:doc_id>/', views.api_doc_delete, name='api_doc_delete'),
+    path('api/docs/<int:doc_id>/reindex/', views.api_doc_reindex, name='api_doc_reindex'),
     path('api/stats/', views.api_stats, name='api_stats'),
 ]

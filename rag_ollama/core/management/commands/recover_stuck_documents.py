@@ -22,7 +22,7 @@ from django.db import OperationalError, ProgrammingError
 
 logger = logging.getLogger(__name__)
 
-_ERROR_MESSAGE = 'Индексация прервана при перезапуске сервиса. Удалите документ и загрузите его повторно.'
+_ERROR_MESSAGE = 'Индексация прервана при перезапуске сервиса. Запустите индексацию документа повторно.'
 
 
 class Command(BaseCommand):

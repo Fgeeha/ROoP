@@ -9,7 +9,14 @@ from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from ..indexing import QUEUE_FULL_USER_MESSAGE, IndexingQueueFullError, start_indexing_async
+from ..indexing import (
+    QUEUE_FULL_USER_MESSAGE,
+    DocumentBusyError,
+    DocumentFileMissingError,
+    IndexingQueueFullError,
+    queue_reindex,
+    start_indexing_async,
+)
 from ..models import ChatMessage, Chunk, Document
 from ..rag_pipeline import RAGPipeline
 from .helpers import FileValidationError, format_size, user_docs_q, validate_and_save_upload
@@ -170,6 +177,38 @@ def htmx_doc_list(request):
     """Return document list partial for HTMX."""
     documents = Document.objects.filter(user_docs_q(request.user))
     return render(request, 'core/partials/doc_list.html', {'documents': documents})
+
+
+def htmx_doc_reindex(request, doc_id):
+    """Re-index an existing document via HTMX. Only owner can re-index."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Метод не разрешен'}, status=405)
+
+    document = get_object_or_404(Document, id=doc_id)
+
+    if document.user != request.user and not request.user.is_staff:
+        return JsonResponse({'error': 'Доступ запрещен'}, status=403)
+
+    def _doc_list(**extra):
+        return {'documents': Document.objects.filter(user_docs_q(request.user)), **extra}
+
+    try:
+        queue_reindex(document)
+    except (DocumentBusyError, DocumentFileMissingError) as e:
+        return render(request, 'core/partials/doc_list.html', _doc_list(error=str(e)), status=409)
+    except IndexingQueueFullError:
+        return render(
+            request,
+            'core/partials/doc_list.html',
+            _doc_list(error=QUEUE_FULL_USER_MESSAGE),
+            status=503,
+        )
+
+    return render(
+        request,
+        'core/partials/doc_list.html',
+        _doc_list(reindexed=document.original_filename),
+    )
 
 
 def htmx_doc_delete(request, doc_id):

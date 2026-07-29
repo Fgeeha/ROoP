@@ -9,6 +9,10 @@
 - File uploads now validated by MIME type (magic bytes) in addition to file extension, rejecting mismatched or binary content.
 - Superuser password removed from docker-compose files; read from `DJANGO_SUPERUSER_PASSWORD` env var. Entrypoint warns and skips creation if unset.
 
+### Added
+
+- Document re-indexing. `POST /api/docs/{id}/reindex/`, a "↻" button in the document list, and `manage.py reindex_documents` (`--status`, `--id`, `--dry-run`) re-run indexing from the file already on the server. Previously a document that failed — full queue, Ollama unavailable, OOM-kill, timeout — could only be fixed by deleting it and uploading the file again. Chunks and vectors from the previous attempt are dropped first, so a re-index cannot duplicate the index. Answers `409` when the document is already queued or its file is gone, `503` when the backlog is full. The management command indexes synchronously and requires the web service to be stopped: embedded ChromaDB allows one writer.
+
 ### Stability on low-memory machines (16 GB)
 
 - `RAGPipeline` singleton initialisation made thread-safe (`threading.RLock`, double-checked locking). With Gunicorn now running one process and several threads, two concurrent requests on a cold start could each build a `chromadb.PersistentClient` against the same persist directory. The instance is published only after a successful initialisation, so a pipeline whose ChromaDB client failed to start no longer becomes the process-wide singleton; `_initialize()` is idempotent.
