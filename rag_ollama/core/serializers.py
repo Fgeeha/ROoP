@@ -79,6 +79,9 @@ class ChatResponseSerializer(serializers.Serializer):
         required=False,
     )
     question = serializers.CharField()
+    # True when relevant chunks were found but did not fit MAX_CONTEXT_CHARS.
+    # `sources` then lists only the chunks the answer was actually built from.
+    context_truncated = serializers.BooleanField(required=False, default=False)
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):

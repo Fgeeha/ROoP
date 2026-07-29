@@ -36,6 +36,10 @@ from core.rag.store import (
 
 logger = logging.getLogger(__name__)
 
+# Joins retrieved chunks inside the prompt.  Its length counts against
+# MAX_CONTEXT_CHARS, so it lives here rather than inline at the join site.
+CONTEXT_SEPARATOR = '\n\n---\n\n'
+
 
 class RAGPipeline:
     """
@@ -282,26 +286,54 @@ class RAGPipeline:
                     f'(порог схожести: {threshold:.2f}). '
                     'Попробуйте переформулировать вопрос.'
                 )
-            return {'answer': answer, 'sources': [], 'question': question}
+            return {'answer': answer, 'sources': [], 'question': question, 'context_truncated': False}
 
         context_parts = []
         sources = []
+        budget = settings.MAX_CONTEXT_CHARS
+        used = 0
+        # search() returns chunks most-relevant-first (ChromaDB orders by
+        # ascending distance), so filling the budget in order keeps the best
+        # chunks and drops the weakest.
         for result in search_results:
-            context_parts.append(result['content'])
+            content = result['content']
+            cost = len(content) + (len(CONTEXT_SEPARATOR) if context_parts else 0)
+            # The first chunk always goes in: answering from no context at all
+            # would be worse than a prompt slightly over budget.
+            if context_parts and used + cost > budget:
+                break
+            used += cost
+            context_parts.append(content)
             sources.append(
                 {
                     'filename': result['metadata'].get('filename', 'Unknown'),
                     'chunk_index': result['metadata'].get('chunk_index', 0),
                     'relevance': result['relevance'],
-                    'preview': result['content'][:200] + '...' if len(result['content']) > 200 else result['content'],
+                    'preview': content[:200] + '...' if len(content) > 200 else content,
                 }
             )
 
-        context = '\n\n---\n\n'.join(context_parts)
+        dropped = len(search_results) - len(context_parts)
+        if dropped:
+            logger.info(
+                'Context budget %d chars: kept %d/%d chunks (%d chars), dropped %d least relevant',
+                budget,
+                len(context_parts),
+                len(search_results),
+                used,
+                dropped,
+            )
+
+        context = CONTEXT_SEPARATOR.join(context_parts)
         prompt = self._build_rag_prompt(question, context)
         answer = self._generate_llm_response(prompt)
 
-        return {'answer': answer, 'sources': sources, 'question': question}
+        return {
+            'answer': answer,
+            'sources': sources,
+            'question': question,
+            'context_truncated': bool(dropped),
+        }
 
     def _build_rag_prompt(self, question: str, context: str) -> str:
         return f"""Ты - полезный ассистент, который отвечает на вопросы на основе предоставленного контекста.

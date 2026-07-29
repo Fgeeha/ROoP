@@ -217,6 +217,10 @@ LLM_MODEL = os.getenv('LLM_MODEL', 'gemma3:4b')
 # Per-request timeout for Ollama API calls (embed + chat).
 # CPU machines can take minutes per request; 300s is generous but finite.
 OLLAMA_REQUEST_TIMEOUT = int(os.getenv('OLLAMA_REQUEST_TIMEOUT', '300'))
+# Context window the Ollama server is configured with (num_ctx).  Mirrors
+# OLLAMA_CONTEXT_LENGTH in the compose files: Django does not set it, but it has
+# to know the size to keep the prompt it builds inside the window.
+OLLAMA_CONTEXT_LENGTH = int(os.getenv('OLLAMA_CONTEXT_LENGTH', '4096'))
 
 # Open WebUI settings (used when LLM_BACKEND=openwebui)
 OPENWEBUI_URL = os.getenv('OPENWEBUI_URL', 'http://localhost:3000')
@@ -241,6 +245,24 @@ SEARCH_K = int(os.getenv('SEARCH_K', '6'))
 # Chunks below this threshold are dropped before sending context to the LLM.
 # 0.0 = no filtering; 0.20 = conservative (drops clearly irrelevant chunks).
 SEARCH_RELEVANCE_THRESHOLD = float(os.getenv('SEARCH_RELEVANCE_THRESHOLD', '0.20'))
+
+# MAX_CONTEXT_CHARS: how many characters of retrieved context may enter the
+# prompt.  Ollama silently truncates anything past num_ctx, so without a budget
+# a raised SEARCH_K produces an answer built from part of the context with no
+# indication that the rest was dropped.  0 = derive from OLLAMA_CONTEXT_LENGTH.
+#
+# Reserved for the generated answer, the instruction block and the question.
+_LLM_RESERVED_TOKENS = 1280
+# Cyrillic costs roughly 2-3 characters per token with these tokenizers.  The
+# low end is used deliberately: underestimating makes the budget stricter, and
+# dropping a marginal chunk is safer than overflowing the window.
+_LLM_CHARS_PER_TOKEN = 2.5
+MAX_CONTEXT_CHARS = int(os.getenv('MAX_CONTEXT_CHARS', '0')) or max(
+    int((OLLAMA_CONTEXT_LENGTH - _LLM_RESERVED_TOKENS) * _LLM_CHARS_PER_TOKEN),
+    # Never below one chunk: a budget that fits nothing would answer from no
+    # context at all.
+    CHUNK_SIZE,
+)
 
 # SHARE_LINK_TTL_DAYS: lifetime of a newly issued public share link, in days.
 # A public link needs no authentication, so an unlimited one keeps a chat or a
