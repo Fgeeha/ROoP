@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="470" viewBox="0 0 1200 470"
+     role="img" aria-labelledby="pipe-title pipe-desc">
+  <title id="pipe-title">Пайплайн ROoP: индексация и запрос</title>
+  <desc id="pipe-desc">Индексация: документ, извлечение текста, чанки, эмбеддинги, запись в ChromaDB. Запрос: вопрос, эмбеддинг вопроса, поиск top-k среди доступных пользователю документов, генерация ответа Ollama со ссылками на источники. Обе фазы выполняются внутри локального контура.</desc>
+
+  <rect width="1200" height="470" rx="26" fill="#0B0D0E"/>
+
+  <g id="perimeter">
+    <rect x="32" y="32" width="1136" height="406" rx="18"
+          fill="none" stroke="#7DBFAE" stroke-opacity="0.45"
+          stroke-width="1.5" stroke-dasharray="7 6"/>
+    <rect x="64" y="20" width="516" height="24" fill="#0B0D0E"/>
+    <text x="76" y="38" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#7DBFAE" letter-spacing="1.6">ЛОКАЛЬНЫЙ КОНТУР — ИСХОДЯЩИХ ЗАПРОСОВ НЕТ</text>
+  </g>
+
+  <!-- ============ Фаза 1: индексация ============ -->
+  <g id="phase-index">
+    <text x="72" y="98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A" letter-spacing="2">ИНДЕКСАЦИЯ</text>
+
+    <rect x="72" y="114" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="166" y="146" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Документ</text>
+    <text x="166" y="169" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">до 25 МиБ</text>
+
+    <rect x="288" y="114" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="382" y="146" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Текст</text>
+    <text x="382" y="169" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">pdfplumber</text>
+
+    <rect x="504" y="114" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="598" y="146" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Чанки</text>
+    <text x="598" y="169" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">1000 / 200</text>
+
+    <rect x="720" y="114" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="814" y="146" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Эмбеддинги</text>
+    <text x="814" y="169" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">пачками по 10</text>
+
+    <rect x="936" y="114" width="188" height="72" rx="10" fill="#14181A" stroke="#7DBFAE" stroke-opacity="0.5"/>
+    <text x="1030" y="146" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">ChromaDB</text>
+    <text x="1030" y="169" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">вектора</text>
+
+    <g stroke="#3A4145" stroke-width="1.5" fill="none">
+      <path d="M260 150 L282 150 M276 144 L284 150 L276 156"/>
+      <path d="M476 150 L498 150 M492 144 L500 150 L492 156"/>
+      <path d="M692 150 L714 150 M708 144 L716 150 L708 156"/>
+      <path d="M908 150 L930 150 M924 144 L932 150 L924 156"/>
+    </g>
+  </g>
+
+  <!-- ============ Мост: ChromaDB -> поиск ============ -->
+  <g id="bridge">
+    <path d="M1030 186 L1030 244 L598 244 L598 296 M592 290 L598 298 L604 290"
+          fill="none" stroke="#3A4145" stroke-width="1.5"/>
+    <text x="622" y="236" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">top-k только по доступным документам</text>
+  </g>
+
+  <!-- ============ Фаза 2: запрос ============ -->
+  <g id="phase-query">
+    <text x="72" y="288" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A" letter-spacing="2">ЗАПРОС</text>
+
+    <rect x="72" y="304" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="166" y="336" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Вопрос</text>
+    <text x="166" y="359" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">UI или REST API</text>
+
+    <rect x="288" y="304" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="382" y="336" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Эмбеддинг</text>
+    <text x="382" y="359" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">та же модель</text>
+
+    <rect x="504" y="304" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="598" y="336" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Поиск</text>
+    <text x="598" y="359" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">k=6, порог 0.20</text>
+
+    <rect x="720" y="304" width="188" height="72" rx="10" fill="#14181A" stroke="#262B2E"/>
+    <text x="814" y="336" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Ollama</text>
+    <text x="814" y="359" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">только контекст</text>
+
+    <rect x="936" y="304" width="188" height="72" rx="10" fill="#14181A" stroke="#7DBFAE" stroke-opacity="0.5"/>
+    <text x="1030" y="336" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="20" fill="#F2F0ED">Ответ</text>
+    <text x="1030" y="359" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#79828A">со ссылками</text>
+
+    <g stroke="#3A4145" stroke-width="1.5" fill="none">
+      <path d="M260 340 L282 340 M276 334 L284 340 L276 346"/>
+      <path d="M476 340 L498 340 M492 334 L500 340 L492 346"/>
+      <path d="M692 340 L714 340 M708 334 L716 340 L708 346"/>
+      <path d="M908 340 L930 340 M924 334 L932 340 L924 346"/>
+    </g>
+  </g>
+
+  <text x="72" y="414" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="18" fill="#79828A">Если ни один чанк не прошёл порог, система сообщает об этом, а не выдумывает ответ</text>
+</svg>
