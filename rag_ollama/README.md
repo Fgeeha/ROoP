@@ -705,21 +705,27 @@ NO_PROXY=localhost,127.0.0.1,ollama,postgres,django
 Переменные пробрасываются в сервисы `ollama` и `ollama-pull`. `NO_PROXY`
 обязателен: без него Django пойдёт к Ollama через внешний прокси.
 
-**Если ни то ни другое недоступно**, модели можно перенести с машины, где
-`pull` работает, — файлы лежат в volume `ollama_data`:
+**Если ни то ни другое недоступно**, модели переносятся файлами с машины, где
+`pull` работает. Самый короткий вариант — скачать на хосте и скопировать в
+volume:
 
 ```bash
-# на машине с доступом
-docker run --rm -v rag_ollama_ollama_data:/data -v "$PWD":/out alpine \
-  tar czf /out/ollama-models.tar.gz -C /data .
+make models-host        # pull на хосте, где сертификат уже в системе
 
-# на рабочей машине, при остановленном roop-ollama
-docker run --rm -v rag_ollama_ollama_data:/data -v "$PWD":/in alpine \
-  tar xzf /in/ollama-models.tar.gz -C /data
+docker compose -f docker-compose.cpu.yml stop ollama
+docker run --rm \
+  -v rag_ollama_ollama_data:/dst \
+  -v "$HOME/.ollama/models":/src:ro \
+  alpine sh -c 'mkdir -p /dst/models && cp -a /src/. /dst/models/'
+docker compose -f docker-compose.cpu.yml start ollama
 ```
 
 Имя volume уточните через `docker volume ls` — оно зависит от имени проекта
 Compose.
+
+Полностью изолированный контур, выборочный перенос отдельных моделей, перенос
+Docker-образов и импорт из GGUF описаны отдельно:
+[`doc/offline-models.md`](../doc/offline-models.md).
 
 ### Django не стартует
 

@@ -140,7 +140,9 @@ make ollama-ca CA=/path/to/corporate-root.crt   # склеит системны�
 make down && make up-cpu && make models
 ```
 
-Если прокси не подменяет TLS, а просто проксирует, сертификат не нужен — задайте `HTTPS_PROXY` и `NO_PROXY` в `.env`. Подробности и офлайн-перенос моделей — в [`rag_ollama/README.md`](rag_ollama/README.md).
+Если прокси не подменяет TLS, а просто проксирует, сертификат не нужен — задайте `HTTPS_PROXY` и `NO_PROXY` в `.env`. Подробности — в [`rag_ollama/README.md`](rag_ollama/README.md).
+
+**Реестр моделей закрыт полностью или сети нет вообще.** Модели и образы переносятся файлами: pull на хосте, донорская машина, выборочный перенос, `docker save`, импорт из GGUF — [`doc/offline-models.md`](doc/offline-models.md).
 
 **Нужно перестроить индекс после смены `EMBED_MODEL`.** Смена embedding-модели меняет размерность векторов, поэтому нужна новая коллекция: задайте другое `CHROMA_COLLECTION`, перезапустите, затем переиндексируйте. Кнопка «↻» работает и для успешно обработанных документов. Для массовой переиндексации остановите веб-сервис: `make down && docker compose run --rm django python manage.py reindex_documents --status completed`.
 
